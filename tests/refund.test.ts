@@ -42,6 +42,18 @@ test("증빙 검증, 고객 확인, 연결, 중복 방지와 초기화", async t
   assert.equal(view.status.label, "가맹점 취소 확인 / 카드 반영 미확인");
   assert.equal(view.events.length, 2);
   assert.match(view.inquirySummary, /ORDER-001/);
+  assert.match(view.inquirySummary, /취소일: 2026-11-19/);
+  assert.match(view.inquirySummary, /출처: 고객이 확인한 취소 증빙/);
+  assert.match(view.inquirySummary, /카드 취소 반영 기록 없음/);
+  assert.equal(typeof view.status.label, "string");
+  assert.equal(typeof view.nextAction, "string");
+  const saved = await fetch(base + "/api/payments/PAY-001").then(r => r.json());
+  assert.equal(saved.inquirySummary, view.inquirySummary);
+  const list = await fetch(base + "/api/payments").then(r => r.json());
+  assert.deepEqual(list.find((item: { id: string }) => item.id === "PAY-001").status, view.status);
+  const reflected = list.find((item: { id: string }) => item.id === "PAY-002");
+  assert.equal(reflected.status.card, "confirmed");
+  assert.match(reflected.inquirySummary, /카드 반영일: 2026-11-18/);
   assert.equal((await post(endpoint, fields)).status, 409);
   assert.equal((await post("/api/evidence/analyze", { text: "합성 취소 메일" })).status, 501);
   assert.equal((await post("/api/evidence/analyze", { text: "" })).status, 400);
