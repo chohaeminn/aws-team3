@@ -2,6 +2,8 @@
 
 [AWS 경진대회 3조 GitHub 저장소](https://github.com/chohaeminn/aws-team3)
 
+팀원 안내: [협업 규칙](CONTRIBUTING.md) · [팀 채팅 공유문과 시작 작업](docs/TEAM_ONBOARDING.md) · [이슈 만들기](https://github.com/chohaeminn/aws-team3/issues/new/choose) · [PR 목록](https://github.com/chohaeminn/aws-team3/pulls)
+
 쇼핑몰에서 취소 완료 안내를 받았는데 카드 내역에는 결제가 남아 있을 때, **어디까지 확인됐고 다음에 무엇을 해야 하는지** 알려주는 서비스입니다.
 
 고객이 취소 메일이나 캡처를 올리면 AI가 주문번호·금액·통화·취소일을 추출합니다. 고객이 추출 내용을 수정·확인한 뒤 관련 결제 기록에 연결하고, 현재 상태와 문의자료를 확인합니다.
