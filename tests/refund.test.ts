@@ -1,0 +1,53 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
+import { createApp } from "../src/server/app.js";
+import { createPaymentStore } from "../src/server/payments/store.js";
+import { toPaymentView } from "../src/server/status/paymentStatus.js";
+
+test("가맹점 증빙과 카드 반영을 독립적으로 계산한다", () => {
+  const [pending, reflected] = createPaymentStore();
+  assert.equal(toPaymentView(pending).status.merchant, "unconfirmed");
+  assert.equal(toPaymentView(reflected).status.card, "confirmed");
+  reflected.events = reflected.events.filter(e => e.kind !== "card_cancel");
+  const merchantOnly = toPaymentView(reflected);
+  assert.equal(merchantOnly.status.merchant, "confirmed");
+  assert.equal(merchantOnly.status.card, "unconfirmed");
+  assert.match(merchantOnly.inquirySummary, /취소일: 2026-11-16/);
+  assert.doesNotMatch(merchantOnly.inquirySummary, /환불 완료/);
+  reflected.evidence = [];
+  reflected.events.push({ id: "card", kind: "card_cancel", date: "2026-11-18", source: "합성 카드 기록", label: "전액 취소" });
+  assert.equal(toPaymentView(reflected).status.merchant, "unconfirmed");
+  assert.equal(toPaymentView(reflected).status.card, "confirmed");
+});
+
+test("증빙 검증, 고객 확인, 연결, 중복 방지와 초기화", async t => {
+  const server = createApp().listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post = (path: string, body: unknown) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const endpoint = "/api/payments/PAY-001/evidence";
+  const fields = { orderNumber: "ORDER-001", amount: 50000, currency: "KRW", cancelledOn: "2026-11-19", confirmed: true };
+  assert.equal((await fetch(base + "/api/payments").then(r => r.json())).length, 3);
+  assert.equal((await post(endpoint, { ...fields, confirmed: false })).status, 400);
+  assert.equal((await post(endpoint, { ...fields, cancelledOn: "2026-02-30" })).status, 400);
+  assert.equal((await post(endpoint, { ...fields, cancelledOn: "2026-11-01" })).status, 409);
+  assert.equal((await post(endpoint, { ...fields, amount: 25000 })).status, 409);
+  assert.equal((await post(endpoint, { ...fields, orderNumber: "ORDER-003" })).status, 409);
+  const response = await post(endpoint, fields);
+  assert.equal(response.status, 201);
+  const view = await response.json();
+  assert.equal(view.status.label, "가맹점 취소 확인 / 카드 반영 미확인");
+  assert.equal(view.events.length, 2);
+  assert.match(view.inquirySummary, /ORDER-001/);
+  assert.equal((await post(endpoint, fields)).status, 409);
+  assert.equal((await post("/api/evidence/analyze", { text: "합성 취소 메일" })).status, 501);
+  assert.equal((await post("/api/evidence/analyze", { text: "" })).status, 400);
+  const malformed = await fetch(base + endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{" });
+  assert.equal(malformed.status, 400);
+  await post("/api/demo/reset", {});
+  const reset = await fetch(base + "/api/payments/PAY-001").then(r => r.json());
+  assert.equal(reset.evidence.length, 0);
+});

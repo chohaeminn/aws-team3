@@ -12,7 +12,19 @@
 
 당일 개발 범위는 **합성 결제 3건과 전액 취소 흐름**입니다.
 
-이 문서의 환불 추적 기능은 개발 목표입니다. 현재 로컬 코드는 React·TypeScript·Express 기반의 기존 **설명하는 FDS 시연 앱**이며, 환불 추적 흐름과 AWS Bedrock 연동은 구현·검증이 필요합니다. 아래 실행 명령은 기존 앱을 실행합니다.
+React·TypeScript·Express 기반의 새 프로젝트입니다. 합성 결제 3건 조회, 증빙 직접 입력·수정·고객 확인 후 연결, 출처별 타임라인, 상태·다음 행동·문의 요약, 복사·시연 초기화가 구현되어 있습니다.
+
+**Bedrock 실제 호출·결제 후보 선택·캡처 업로드·AWS 배포는 후속 구현 대상입니다.** 현재 AI 분석 API는 미연결 오류를 반환하며, 화면의 ‘합성 예시 불러오기’는 AI 결과가 아닙니다. 로컬 메모리에 저장하므로 재시작 시 초기화됩니다.
+
+### 담당별 시작 파일
+
+| 담당 | 시작 위치 | 다음 작업 |
+| --- | --- | --- |
+| ① 결제 데이터·API | `src/server/payments/store.ts`, `src/server/app.ts` | 데이터 저장·조회 확장, 입력 검증 협의 |
+| ② AI 증빙 분석 | `src/server/evidence/analyzer.ts` | Bedrock 실제 호출·추출·결제 후보 연결 |
+| ③ 상태 판단·문의자료 | `src/server/status/paymentStatus.ts` | 상태·문의 문구 검토, 사례 확장 |
+| ④ UI·시연 | `src/web/App.tsx`, `src/web/styles.css` | 캡처 업로드·후보 선택·분석 재시도 UI |
+| 공통 | `src/shared/types.ts`, [API 계약](docs/API.md) | 인터페이스 변경 시 관련 담당자 협의 |
 
 ## 핵심 기능
 
@@ -75,11 +87,16 @@ npm ci
 npm start
 ```
 
+브라우저에서 **http://localhost:3000**에 접속합니다. 현재 서버는 로컬 PC에서만 접속됩니다.
+
+빠른 시연: 첫 거래 선택 → 합성 예시 불러오기 → 값 확인 → 확인 체크 → 결제에 연결 → 카드 반영 미확인 상태와 문의자료 확인·복사. 두 번째 거래는 카드 반영 확인 사례입니다. 오른쪽 아래 ‘시연 초기화’로 처음 상태로 되돌립니다.
+
 검증 명령:
 
 ```sh
 npm run typecheck
 npm run build
+npm test
 ```
 
 현재 소스 구성:
@@ -89,7 +106,9 @@ npm run build
 | `src/web/` | React 화면 |
 | `src/server/` | Express API 및 로컬 서비스 |
 | `src/shared/` | 공유 타입 |
-| `data/` | 기존 시연 데이터 |
-| `config/` | 기존 규칙 설정 |
+| `src/server/payments/` | 합성 결제 3건·메모리 저장소 |
+| `src/server/evidence/` | AI 어댑터 연결 지점 |
+| `src/server/status/` | 출처별 상태·문의 요약 |
+| `tests/` | 상태 판단·API 통합 검증 |
 
 실제 AWS 계정이나 카드사에 연결되었다고 가정하지 않습니다. Bedrock 호출 성공 여부와 배포 주소는 구현 후 검증 결과를 기록합니다.
