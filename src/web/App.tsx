@@ -64,7 +64,7 @@ export function App() {
     setCaptures(old => old.filter(c => c.id !== id)); setCaptureError("");
   }
   async function analyze() {
-    setBusy(true); setMessage(""); setNotice(""); setAnalysisError(""); setCandidateIds([]); setAnalysisSource("");
+    setBusy(true); setConfirmed(false); setMessage(""); setNotice(""); setAnalysisError(""); setCandidateIds([]); setAnalysisSource("");
     try {
       let result: AnalysisResult; let source: "api" | "mock";
       if (mockMode === "off") { result = await request<AnalysisResult>("/api/evidence/analyze", { text }); source = "api"; }
