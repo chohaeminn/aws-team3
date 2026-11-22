@@ -32,6 +32,7 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function formatSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`; }
 export function App() {
   const [payments, setPayments] = useState<PaymentView[]>([]);
+  const [activeTab, setActiveTab] = useState<"status" | "evidence" | "inquiry">("status");
   const [loaded, setLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState("PAY-001");
   const [fields, setFields] = useState<EvidenceFields>(emptyFields);
@@ -66,7 +67,7 @@ export function App() {
   useEffect(() => () => capturesRef.current.forEach(c => URL.revokeObjectURL(c.url)), []);
   useEffect(() => { request<PaymentView[]>("/api/payments").then(setPayments).catch(e => setMessage(e.message)).finally(() => setLoaded(true)); }, []);
   function edit(patch: Partial<EvidenceFields>) { setFields(old => ({ ...old, ...patch })); setConfirmed(false); setNotice(""); }
-  function select(id: string) { setSelectedId(id); setFields(emptyFields); setConfirmed(false); setNotice(""); setMessage(""); setCandidateIds([]); setAnalysisSource(""); setAnalysisError(""); }
+  function select(id: string) { setSelectedId(id); setActiveTab("status"); setFields(emptyFields); setConfirmed(false); setNotice(""); setMessage(""); setCandidateIds([]); setAnalysisSource(""); setAnalysisError(""); }
   function chooseCandidate(id: string) { setSelectedId(id); setConfirmed(false); setMessage(""); setNotice("선택한 결제 후보로 바꿨어요. 증빙 값과 비교해 확인해 주세요."); }
   function addCaptures(list: FileList | File[] | null) {
     if (!list) return;
@@ -126,25 +127,27 @@ export function App() {
   }
   return <div className="app-shell">
     <a className="skip-link" href="#workspace">본문으로 건너뛰기</a>
-    <aside className="sidebar">
-      <a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-dot">.</span></a>
-      <div className="workspace-label">PERSONAL WORKSPACE</div>
-      <nav className="side-nav" aria-label="작업 메뉴"><a className="active" href="#workspace" aria-current="page"><Icon name="grid" />결제 관리<span>{payments.length}</span></a><a href="#evidence"><Icon name="file" />증빙 확인</a><a href="#inquiry"><Icon name="copy" />문의자료</a></nav>
-      <div className="sidebar-note"><Icon name="shield" /><strong>확인된 기록으로,<br />더 명확한 다음 단계.</strong><p>취소 안내와 카드 반영을<br />각각 확인하세요.</p></div>
-      <div className="team-profile"><span>T3</span><div><strong>AWS Team 3</strong><small>합성 데이터 워크스페이스</small></div></div>
-    </aside>
-    <div className="main-area"><div className="topbar"><span>내 워크스페이스 <b>/</b> <strong>결제 관리</strong></span><span className="demo-badge">DEMO WORKSPACE</span></div>
+    <div className="app-bar"><a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-caption">결제 취소·환불 추적</span></a><span className="demo-badge">합성 데이터 · 시연 버전</span></div>
     <main id="workspace">
-    <header className="page-header"><div><span className="eyebrow">PAYMENT TRACKER</span><h1>취소 이후의 흐름을, 한눈에.</h1><p>흩어진 취소 증빙을 연결하고 다음 단계를 확인하세요.</p></div><a className="header-action" href="#evidence"><Icon name="upload" size={17} />증빙 등록</a></header>
-    <div className="demo-banner"><Icon name="shield" size={18} /><span><strong>합성 데이터로 체험 중이에요.</strong> 실제 결제·카드사에 연결되지 않았으며, AI 분석 API는 준비 중입니다.</span></div>
-    <div className="overview" aria-label="결제 현황"><div><span>전체 결제</span><strong>{payments.length}<small>건</small></strong><Icon name="grid" /></div><div><span>가맹점 취소 확인</span><strong>{payments.filter(p => p.status.merchant === "confirmed").length}<small>건</small></strong><Icon name="file" /></div><div><span>카드 반영 확인</span><strong>{payments.filter(p => p.status.card === "confirmed").length}<small>건</small></strong><Icon name="shield" /></div></div>
-    <div className="list-heading"><h2>내 결제 내역 <span>{payments.length}</span></h2><span>결제를 선택해 자세히 확인하세요</span></div>
+    <header className="page-header"><h1>내 결제의 취소 진행 상황</h1><p>결제를 선택하면 현재 상태와 다음에 할 일을 확인할 수 있어요.</p></header>
+    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요.</span></div>
+    <div className="workspace-layout"><aside className="payment-panel"><div className="list-heading"><h2>결제 내역</h2><span>{payments.length}건</span></div>
     {!loaded && <div className="empty-state" role="status">결제 내역을 불러오고 있어요…</div>}
     {loaded && payments.length === 0 && <div className="empty-state">{message ? "결제 내역을 불러오지 못했어요. 잠시 후 페이지를 새로고침해 주세요." : "등록된 결제 내역이 없어요."}</div>}
-    <nav className="payment-list" aria-label="결제 선택">{payments.map((p, index) => <button key={p.id} disabled={busy} aria-pressed={p.id === selectedId} onClick={() => select(p.id)}><div className="payment-top"><span className={`merchant-avatar merchant-${index}`}>{p.merchant.slice(0, 1)}</span><span className={`badge ${p.status.card === "confirmed" ? "verified" : "pending"}`}>{p.status.card === "confirmed" ? "카드 반영 확인" : "카드 반영 미확인"}</span></div><strong>{p.merchant}</strong><span className="payment-amount">{p.amount.toLocaleString("ko-KR")}<small>{p.currency}</small></span><div className="payment-meta"><small>{p.orderNumber}</small><small>{p.paidOn}</small></div></button>)}</nav>
+    <nav className="payment-list" aria-label="결제 선택">{payments.map(p => <button key={p.id} disabled={busy} aria-pressed={p.id === selectedId} onClick={() => select(p.id)}><strong>{p.merchant}</strong><span className="payment-amount">{p.amount.toLocaleString("ko-KR")} <small>{p.currency}</small></span><small>{p.paidOn} · {p.orderNumber}</small><span className={`badge ${p.status.card === "confirmed" ? "verified" : "pending"}`}>{p.status.card === "confirmed" ? "카드 반영 확인" : "카드 반영 미확인"}</span></button>)}</nav></aside>
+    <div className="payment-content">
+    {selected && <><div className="selected-heading"><div><span className="eyebrow">선택한 결제</span><h2>{selected.merchant}</h2><p>{selected.orderNumber} · 결제일 {selected.paidOn}</p></div><strong>{selected.amount.toLocaleString("ko-KR")} <small>{selected.currency}</small></strong></div>
+    <div className="view-tabs" role="tablist" aria-label="결제 상세 보기">{([{ id: "status", label: "진행 상태" }, { id: "evidence", label: "증빙 등록" }, { id: "inquiry", label: "문의자료" }] as const).map(tab => <button key={tab.id} id={`tab-${tab.id}`} role="tab" aria-selected={activeTab === tab.id} aria-controls={`panel-${tab.id}`} tabIndex={activeTab === tab.id ? 0 : -1} onKeyDown={e => {
+      const tabs = ["status", "evidence", "inquiry"] as const;
+      const index = tabs.indexOf(tab.id);
+      const next = e.key === "ArrowRight" ? (index + 1) % tabs.length : e.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
+      if (next < 0) return;
+      e.preventDefault(); setActiveTab(tabs[next]);
+      document.getElementById(`tab-${tabs[next]}`)?.focus();
+    }} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div></>}
     {message && <p className="error" role="alert">{message}</p>}
     {notice && <p className="notice" role="status">{notice}</p>}
-    {selected && <div className="grid"><section id="evidence"><div className="section-heading"><span className="section-icon"><Icon name="file" /></span><div><h2>취소 증빙 확인</h2><p>메일이나 캡처에서 취소 정보를 확인하세요.</p></div></div><label>취소 메일 텍스트<textarea value={text} disabled={busy} onChange={e => { setText(e.target.value); setConfirmed(false); }} placeholder="취소 안내 메일을 여기에 붙여넣으세요." /></label>
+    {selected && <div className="detail-views"><section id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence" hidden={activeTab !== "evidence"}><div className="section-heading"><span className="section-icon"><Icon name="file" /></span><div><h2>취소 증빙 확인</h2><p>메일이나 캡처에서 취소 정보를 확인하세요.</p></div></div><label>취소 메일 텍스트<textarea value={text} disabled={busy} onChange={e => { setText(e.target.value); setConfirmed(false); }} placeholder="취소 안내 메일을 여기에 붙여넣으세요." /></label>
       <details className="mock-panel"><summary>시연 설정 <span>{mockMode === "off" ? "실제 API" : "Mock 사용 중 · AI 결과 아님"}</span></summary><label>시연용 Mock 응답<select value={mockMode} disabled={busy} onChange={e => { setMockMode(e.target.value as MockMode); setAnalysisError(""); setConfirmed(false); }}>{(Object.keys(mockLabels) as MockMode[]).map(m => <option key={m} value={m}>{mockLabels[m]}</option>)}</select></label>{mockMode !== "off" && <small>백엔드를 호출하지 않고 가짜 응답을 사용합니다. 실제 AI 결과가 아닙니다.</small>}</details>
       <div className="upload"><span className="upload-title">영수증·취소 메일 캡처 ({captures.length}/{MAX_CAPTURES})</span>
         <input id="capture-input" className="visually-hidden" type="file" accept={CAPTURE_TYPES.join(",")} multiple disabled={busy || captures.length >= MAX_CAPTURES} onChange={e => { addCaptures(e.target.files); e.target.value = ""; }} />
@@ -178,7 +181,7 @@ export function App() {
       <div className="form-divider"><h3>추출 정보 확인</h3><span>직접 수정할 수 있어요</span></div>
       <form onSubmit={e => { e.preventDefault(); void run(async () => {
         const updated = await request<PaymentView>(`/api/payments/${selectedId}/evidence`, { ...fields, confirmed });
-        setPayments(old => old.map(p => p.id === updated.id ? updated : p)); setConfirmed(false); setNotice("확인한 증빙을 결제에 연결했어요.");
+        setPayments(old => old.map(p => p.id === updated.id ? updated : p)); setActiveTab("status"); setConfirmed(false); setNotice("확인한 증빙을 결제에 연결했어요.");
       }); }}>
         <fieldset disabled={busy}>
         <label>주문번호<input required value={fields.orderNumber} onChange={e => edit({ orderNumber: e.target.value })} /></label>
@@ -188,9 +191,10 @@ export function App() {
         <button className="primary" disabled={busy || !confirmed}>확인하고 결제에 연결</button>
         </fieldset>
       </form>
-    </section><div className="detail-stack"><section className="status-section"><div className="section-heading"><span className="section-icon"><Icon name="shield" /></span><div><h2>현재 확인된 상태</h2><p>{selected.merchant} · {selected.orderNumber}</p></div></div><div className="status-pair"><div><span>가맹점 취소</span><strong className={selected.status.merchant === "confirmed" ? "state-verified" : "state-pending"}>{selected.status.merchant === "confirmed" ? "확인됨" : "미확인"}</strong><small>고객이 확인한 취소 증빙 기준</small></div><div><span>카드 반영</span><strong className={selected.status.card === "confirmed" ? "state-verified" : "state-pending"}>{selected.status.card === "confirmed" ? "확인됨" : "미확인"}</strong><small>확보된 카드 취소 기록 기준</small></div></div><div className="next-action"><span>다음으로 할 일</span><p>{selected.nextAction}</p></div><p className="status-footnote">미확인은 처리 실패를 뜻하지 않아요. 확보된 기록을 기준으로 안내합니다.</p></section>
+    </section><div className="detail-stack" id="panel-status" role="tabpanel" aria-labelledby="tab-status" hidden={activeTab !== "status"}><section className="status-section"><div className="section-heading"><span className="section-icon"><Icon name="shield" /></span><div><h2>현재 확인된 상태</h2><p>{selected.merchant} · {selected.orderNumber}</p></div></div><div className="status-pair"><div><span>가맹점 취소</span><strong className={selected.status.merchant === "confirmed" ? "state-verified" : "state-pending"}>{selected.status.merchant === "confirmed" ? "확인됨" : "미확인"}</strong><small>고객이 확인한 취소 증빙 기준</small></div><div><span>카드 반영</span><strong className={selected.status.card === "confirmed" ? "state-verified" : "state-pending"}>{selected.status.card === "confirmed" ? "확인됨" : "미확인"}</strong><small>확보된 카드 취소 기록 기준</small></div></div><div className="next-action"><span>다음으로 할 일</span><p>{selected.nextAction}</p></div><div className="status-actions"><button className="primary" onClick={() => setActiveTab("evidence")}>취소 증빙 등록하기</button><button onClick={() => setActiveTab("inquiry")}>문의자료 보기</button></div><p className="status-footnote">미확인은 처리 실패를 뜻하지 않아요. 확보된 기록을 기준으로 안내합니다.</p></section>
     <section><div className="subheading"><h2>결제·취소 타임라인</h2><span className="badge neutral">{selected.events.length}개 기록</span></div><ol className="timeline">{[...selected.events].sort((a,b) => a.date.localeCompare(b.date)).map(event => <li key={event.id} className={event.kind === "card_cancel" ? "card-event" : ""}><time>{event.date}</time><strong>{event.label}</strong><small>{event.source}</small></li>)}</ol></section>
-    <section id="inquiry" className="inquiry-section"><div className="section-heading"><span className="section-icon"><Icon name="copy" /></span><div><h2>문의 준비, 여기서 끝.</h2><p>확인된 기록을 정리했어요. 복사해서 전달하세요.</p></div></div><pre>{selected.inquirySummary}</pre><button className="copy-button" disabled={busy} onClick={() => run(async () => { await navigator.clipboard.writeText(selected.inquirySummary); setNotice("문의자료를 복사했어요."); })}><Icon name="copy" size={17} />문의자료 복사</button></section></div></div>}
+    </div><section id="panel-inquiry" role="tabpanel" aria-labelledby="tab-inquiry" hidden={activeTab !== "inquiry"} className="inquiry-section"><div className="section-heading"><span className="section-icon"><Icon name="copy" /></span><div><h2>문의자료</h2><p>확인된 기록을 정리했어요. 복사해서 전달하세요.</p></div></div><pre>{selected.inquirySummary}</pre><button className="copy-button" disabled={busy} onClick={() => run(async () => { await navigator.clipboard.writeText(selected.inquirySummary); setNotice("문의자료를 복사했어요."); })}><Icon name="copy" size={17} />문의자료 복사</button></section></div>}
+    </div></div>
     {zoomed && <div className="lightbox" role="dialog" aria-modal="true" aria-label="캡처 크게 보기" onClick={() => setZoomId("")}>
       <button type="button" className="lightbox-close" autoFocus onClick={() => setZoomId("")} aria-label="닫기">✕</button>
       <img src={zoomed.url} alt={`${zoomed.file.name} 원본 보기`} onClick={e => e.stopPropagation()} />
@@ -199,5 +203,5 @@ export function App() {
       if (!window.confirm("모든 시연 데이터를 초기 상태로 되돌릴까요?")) return;
       void run(async () => { await request("/api/demo/reset", {}); setPayments(await request<PaymentView[]>("/api/payments")); select("PAY-001"); setNotice("시연 데이터를 초기화했어요."); });
     }}>시연 초기화</button></footer>
-  </main></div></div>;
+  </main></div>;
 }
