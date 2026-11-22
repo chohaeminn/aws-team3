@@ -6,8 +6,10 @@ import type { EvidenceFields } from "../shared/types.js";
 import { createPaymentStore } from "./payments/store.js";
 import { toPaymentView } from "./status/paymentStatus.js";
 import { analyzeEvidence, AnalysisUnavailable } from "./evidence/analyzer.js";
+import type { EvidenceAnalyzer } from "./evidence/analyzer.js";
+import { InvalidEvidenceInput, parseEvidenceInput, readEvidenceBody } from "./evidence/request.js";
 
-export function createApp() {
+export function createApp({ evidenceAnalyzer = analyzeEvidence }: { evidenceAnalyzer?: EvidenceAnalyzer } = {}) {
   const app = express();
   let payments = createPaymentStore();
   app.use(express.json({ limit: "100kb" }));
@@ -18,12 +20,12 @@ export function createApp() {
     if (!payment) { res.status(404).json({ code: "NOT_FOUND", message: "결제 건을 찾을 수 없어요." }); return; }
     res.json(toPaymentView(payment));
   });
-  app.post("/api/evidence/analyze", async (req, res) => {
-    if (typeof req.body?.text !== "string" || !req.body.text.trim()) {
-      res.status(400).json({ code: "INVALID_INPUT", message: "취소 메일 텍스트를 입력해 주세요." }); return;
-    }
-    try { res.json(await analyzeEvidence(req.body.text)); }
+  app.post("/api/evidence/analyze", readEvidenceBody, async (req, res) => {
+    try { res.json(await evidenceAnalyzer(await parseEvidenceInput(req))); }
     catch (error) {
+      if (error instanceof InvalidEvidenceInput) {
+        res.status(400).json({ code: "INVALID_INPUT", message: error.message }); return;
+      }
       if (!(error instanceof AnalysisUnavailable)) throw error;
       res.status(501).json({ code: "AI_NOT_CONFIGURED", message: error.message });
     }
