@@ -19,7 +19,7 @@
 | GET | `/api/health` | 서버 상태, 합성 데이터·AI 연결 여부 |
 | GET | `/api/payments` | `PaymentView[]` |
 | GET | `/api/payments/:id` | `PaymentView` |
-| POST | `/api/evidence/analyze` | ② 담당 연결 전 `501 AI_NOT_CONFIGURED` |
+| POST | `/api/evidence/analyze` | `200 AnalysisResult`, 기본 서버는 `501 AI_NOT_CONFIGURED` |
 | POST | `/api/payments/:id/evidence` | 고객 확인 증빙 연결, `201 PaymentView` |
 | POST | `/api/demo/reset` | 합성 데이터 초기화, `{ "ok": true }` |
 
@@ -57,7 +57,12 @@
 
 ## AI 분석 연결 계약
 
-입력은 `{ "text": "합성 취소 메일 텍스트" }`입니다. 빈 입력은 `400 INVALID_INPUT`입니다.
+| Content-Type | 요청 본문 |
+| --- | --- |
+| `application/json` | `{ "text": "합성 취소 메일 텍스트" }`. 공백 이외의 텍스트가 필요합니다. |
+| `multipart/form-data` | `text` 필드 한 개와 반복되는 `images` 파일 필드. 텍스트와 이미지 중 하나 이상이 필요합니다. 텍스트는 최대 100 KiB, 이미지는 PNG·JPEG MIME 유형만 최대 4장, 장당 3 MiB까지 받습니다. |
+
+빈 입력과 잘못된 필드는 `400 INVALID_INPUT`입니다. 본문 크기 제한을 넘으면 `413 INVALID_INPUT`입니다. 유효한 요청에 대해 기본 서버는 `501 AI_NOT_CONFIGURED`를 반환하며, 예상하지 못한 분석 실패는 `500 INTERNAL_ERROR`입니다. 오류 본문은 공통 `{ code, message }` 형식을 사용합니다.
 
 ② 담당이 `src/server/evidence/analyzer.ts`를 구현합니다. 반환 타입은 다음과 같습니다.
 
@@ -69,7 +74,7 @@ interface AnalysisResult {
 }
 ```
 
-누락 항목은 값을 지어내지 않고 생략합니다. 후보는 자동 확정하지 않습니다. UI는 추출값을 편집할 수 있고 고객 확인 후 별도 연결 API를 호출합니다. PR #3으로 후보 선택·캡처 미리보기·재시도 UI가 연결되었으며, 실제 이미지 서버 전송과 Bedrock 연동은 후속 구현 대상입니다. 실제 어댑터를 연결할 때 health 응답과 화면의 AI 미연결 안내도 함께 수정합니다.
+누락 항목은 값을 지어내지 않고 생략합니다. UI는 추출값과 결제 후보를 검토하고 고객 확인 후 별도 연결 API를 호출합니다. 분석 요청은 결제와 증빙을 읽기 전용으로 다룹니다. HTTP 테스트는 `createApp({ evidenceAnalyzer })`에 모의 분석기를 주입해 Bedrock 성공 응답을 재현합니다. 실제 어댑터를 연결할 때 health 응답과 화면의 AI 미연결 안내도 함께 수정합니다.
 
 ## 상태 판단 · ③ 담당
 
