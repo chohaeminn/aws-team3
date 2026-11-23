@@ -16,10 +16,10 @@
 
 | 메서드 | 경로 | 결과 |
 | --- | --- | --- |
-| GET | `/api/health` | 서버 상태, 합성 데이터·AI 연결 여부 |
+| GET | `/api/health` | 서버 상태, 합성 데이터, `GEMINI_API_KEY` 설정 여부(`aiConnected`) |
 | GET | `/api/payments` | `PaymentView[]` |
 | GET | `/api/payments/:id` | `PaymentView` |
-| POST | `/api/evidence/analyze` | `200 AnalysisResult`, 기본 서버는 `501 AI_NOT_CONFIGURED` |
+| POST | `/api/evidence/analyze` | `200 AnalysisResult`, 키 미설정 시 `501 AI_NOT_CONFIGURED`, 외부 AI 호출 실패 시 `502 AI_ANALYSIS_FAILED` |
 | POST | `/api/payments/:id/evidence` | 고객 확인 증빙 연결, `201 PaymentView` |
 | POST | `/api/demo/reset` | 합성 데이터 초기화, `{ "ok": true }` |
 
@@ -76,7 +76,7 @@ PAY-002에는 11월 14일 결제, 15일 요청, 16일 가맹점 확인, 18일 �
 | `application/json` | `{ "text": "합성 취소 메일 텍스트" }`. 공백 이외의 텍스트가 필요합니다. |
 | `multipart/form-data` | `text` 필드 한 개와 반복되는 `images` 파일 필드. 텍스트와 이미지 중 하나 이상이 필요합니다. 텍스트는 최대 100 KiB, 이미지는 PNG·JPEG MIME 유형만 최대 4장, 장당 3 MiB까지 받습니다. |
 
-빈 입력과 잘못된 필드는 `400 INVALID_INPUT`입니다. 본문 크기 제한을 넘으면 `413 INVALID_INPUT`입니다. 유효한 요청에 대해 기본 서버는 `501 AI_NOT_CONFIGURED`를 반환하며, 예상하지 못한 분석 실패는 `500 INTERNAL_ERROR`입니다. 오류 본문은 공통 `{ code, message }` 형식을 사용합니다.
+빈 입력과 잘못된 필드는 `400 INVALID_INPUT`입니다. 본문 크기 제한을 넘으면 `413 INVALID_INPUT`입니다. 유효한 요청에 대해 `GEMINI_API_KEY`가 없으면 `501 AI_NOT_CONFIGURED`를 반환합니다. 외부 AI(Gemini) 호출이 실패하면(연결 오류, 사용량 한도, 요청 거절, 해석할 수 없는 응답) `502 AI_ANALYSIS_FAILED`를 반환하며, 메시지에는 API 키와 외부 응답 본문을 담지 않습니다(상태 코드는 서버 콘솔에만 기록). 화면은 이 응답에 재시도를 안내합니다. 그 밖의 예상하지 못한 분석 실패는 `500 INTERNAL_ERROR`입니다. 오류 본문은 공통 `{ code, message }` 형식을 사용합니다.
 
 ② 담당이 `src/server/evidence/analyzer.ts`를 구현합니다. 반환 타입은 다음과 같습니다.
 
@@ -84,11 +84,20 @@ PAY-002에는 11월 14일 결제, 15일 요청, 16일 가맹점 확인, 18일 �
 interface AnalysisResult {
   fields: Partial<EvidenceFields>;
   candidatePaymentIds: string[];
-  provider: "bedrock";
+  provider: "bedrock" | "gemini";
 }
 ```
+현재 서버는 `GEMINI_API_KEY`가 설정되면 Gemini(`provider: "gemini"`)를 호출합니다. 모델은 `GEMINI_MODEL`로 바꿀 수 있고 기본값은 `gemini-3.5-flash-lite`입니다. `/api/health`의 `aiConnected`는 `GEMINI_API_KEY` 환경 변수가 설정되어 있는지만 나타냅니다. 실제 외부 API 호출 성공이나 키·모델의 유효성은 보장하지 않으며, 호출이 실패하면 분석 요청이 `502 AI_ANALYSIS_FAILED`를 반환합니다. `candidatePaymentIds`는 추출한 주문번호·금액·통화가 모두 일치하는 결제 ID입니다. 응답 예시는 다음과 같습니다.
+```json
+{
+  "fields": { "orderNumber": "ORDER-001", "amount": 50000, "currency": "KRW", "cancelledOn": "2026-11-19" },
+  "candidatePaymentIds": ["PAY-001"],
+  "provider": "gemini"
+}
+```
+외부 호출 실패 응답 예시는 `{ "code": "AI_ANALYSIS_FAILED", "message": "AI 서버가 오류를 반환했어요. 잠시 후 다시 시도해 주세요. (HTTP 500)" }`입니다.
 
-누락 항목은 값을 지어내지 않고 생략합니다. UI는 추출값과 결제 후보를 검토하고 고객 확인 후 별도 연결 API를 호출합니다. 분석 요청은 결제와 증빙을 읽기 전용으로 다룹니다. HTTP 테스트는 `createApp({ evidenceAnalyzer })`에 모의 분석기를 주입해 Bedrock 성공 응답을 재현합니다. 실제 어댑터를 연결할 때 health 응답과 화면의 AI 미연결 안내도 함께 수정합니다.
+누락 항목은 값을 지어내지 않고 생략합니다. UI는 추출값과 결제 후보를 검토하고 고객 확인 후 별도 연결 API를 호출합니다. 분석 요청은 결제와 증빙을 읽기 전용으로 다룹니다. HTTP 테스트는 `createApp({ evidenceAnalyzer })`에 모의 분석기를 주입해 성공 응답을 재현하고, Gemini 분석기는 `fetch`를 주입해 검증합니다.
 
 ## 상태 판단 · ③ 담당
 
@@ -124,4 +133,6 @@ interface AnalysisResult {
 
 ## 시연 범위
 
-로컬 서버는 `127.0.0.1`에만 바인딩합니다. 인증·영속 저장·실제 카드사 연동은 없습니다. 공유 배포 전 인증, 데이터 격리, 초기화 API 접근 제어를 구현해야 합니다.
+`/api/health`의 `aiConnected`는 키 설정 여부만 나타냅니다. 키 유효성, 모델 접근 권한이나 실제 분석 성공을 보장하지 않습니다. 실제 성공 여부는 분석 요청 결과로 확인합니다.
+
+로컬 서버는 기본 `127.0.0.1`에 바인딩합니다. `HOST`와 `PORT`로 변경할 수 있습니다. 인증·영속 저장·실제 카드사 연동은 없습니다. 공유 배포 전 인증, 데이터 격리, 초기화 API 접근 제어를 구현해야 합니다. 배포 준비와 검증은 [시연 체크리스트](DEMO_CHECKLIST.md)를 따릅니다.

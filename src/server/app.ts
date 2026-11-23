@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { EvidenceFields } from "../shared/types.js";
 import { createPaymentStore } from "./payments/store.js";
 import { toPaymentView } from "./status/paymentStatus.js";
-import { analyzeEvidence, AnalysisUnavailable } from "./evidence/analyzer.js";
+import { analyzeEvidence, AnalysisFailed, AnalysisUnavailable, isAiConfigured } from "./evidence/analyzer.js";
 import type { EvidenceAnalyzer } from "./evidence/analyzer.js";
 import { InvalidEvidenceInput, parseEvidenceInput, readEvidenceBody } from "./evidence/request.js";
 
@@ -13,7 +13,7 @@ export function createApp({ evidenceAnalyzer = analyzeEvidence }: { evidenceAnal
   const app = express();
   let payments = createPaymentStore();
   app.use(express.json({ limit: "100kb" }));
-  app.get("/api/health", (_req, res) => res.json({ ok: true, synthetic: true, aiConnected: false }));
+  app.get("/api/health", (_req, res) => res.json({ ok: true, synthetic: true, aiConnected: isAiConfigured() }));
   app.get("/api/payments", (_req, res) => res.json(payments.map(toPaymentView)));
   app.get("/api/payments/:id", (req, res) => {
     const payment = payments.find(item => item.id === req.params.id);
@@ -25,6 +25,9 @@ export function createApp({ evidenceAnalyzer = analyzeEvidence }: { evidenceAnal
     catch (error) {
       if (error instanceof InvalidEvidenceInput) {
         res.status(400).json({ code: "INVALID_INPUT", message: error.message }); return;
+      }
+      if (error instanceof AnalysisFailed) {
+        res.status(502).json({ code: "AI_ANALYSIS_FAILED", message: error.message }); return;
       }
       if (!(error instanceof AnalysisUnavailable)) throw error;
       res.status(501).json({ code: "AI_NOT_CONFIGURED", message: error.message });
