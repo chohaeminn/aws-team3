@@ -129,10 +129,12 @@ export function createGeminiAnalyzer({ apiKey, model = defaultGeminiModel, fetch
       // 디버깅용: 상태 코드와 Google 오류 본문을 서버 콘솔에만 남긴다. API 키는 가린다.
       const detail = (await response.text().catch(() => "")).split(apiKey).join("[redacted]").slice(0, 2000);
       console.error(`[gemini] HTTP ${response.status} (model: ${model}) ${detail}`);
-      const hint = response.status === 429 ? "무료 사용량 한도를 넘었어요. 잠시 후 다시 시도해 주세요."
-        : response.status === 400 || response.status === 403 ? "AI 요청이 거절됐어요. API 키 설정을 확인해 주세요."
-        : "AI 서버가 오류를 반환했어요. 잠시 후 다시 시도해 주세요.";
-      throw new AnalysisFailed(`${hint} (HTTP ${response.status})`);
+      const { status } = response;
+      if (status === 401 || status === 403) {
+        throw new AnalysisFailed(`AI API 키가 유효하지 않거나 접근 권한이 없어요. 서버의 GEMINI_API_KEY 설정을 확인해 주세요. (HTTP ${status})`);
+      }
+      if (status === 429) throw new AnalysisFailed("AI 요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요. (HTTP 429)");
+      throw new AnalysisFailed(`AI 서버가 오류를 반환했어요. 잠시 후 다시 시도해 주세요. (HTTP ${status})`);
     }
     let fields: Partial<EvidenceFields>;
     try {
