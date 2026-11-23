@@ -14,16 +14,16 @@
 
 React·TypeScript·Express 기반의 새 프로젝트입니다. 합성 결제 3건 조회, 증빙 직접 입력·수정·고객 확인 후 연결, 출처별 타임라인, 상태·다음 행동·문의 요약, 복사·시연 초기화가 구현되어 있습니다.
 
-**Bedrock 실제 호출·결제 후보 선택·캡처 업로드·AWS 배포는 후속 구현 대상입니다.** 현재 AI 분석 API는 미연결 오류를 반환하며, 화면의 ‘합성 예시 불러오기’는 AI 결과가 아닙니다. 로컬 메모리에 저장하므로 재시작 시 초기화됩니다.
+**Gemini 기반 텍스트·캡처 분석, 결제 후보 선택, 캡처 업로드·재시도 UI가 구현되어 있습니다.** `.env`에 `GEMINI_API_KEY`를 설정하면 실제 분석을 요청합니다. 키 설정 표시는 호출 성공을 보장하지 않습니다. 키가 없으면 미연결 오류를 반환하며, 화면의 ‘합성 예시 불러오기’는 AI 결과가 아닙니다. Bedrock 연동·AWS 배포는 미완료입니다. 로컬 메모리에 저장하므로 재시작 시 초기화됩니다.
 
 ### 담당별 시작 파일
 
 | 담당 | 시작 위치 | 다음 작업 |
 | --- | --- | --- |
 | ① 결제 데이터·API | `src/server/payments/store.ts`, `src/server/app.ts` | 데이터 저장·조회 확장, 입력 검증 협의 |
-| ② AI 증빙 분석 | `src/server/evidence/analyzer.ts` | Bedrock 실제 호출·추출·결제 후보 연결 |
+| ② AI 증빙 분석 | `src/server/evidence/analyzer.ts` | Gemini 이미지·오류 사례 실제 검증 |
 | ③ 상태 판단·문의자료 | `src/server/status/paymentStatus.ts` | 상태·문의 문구 검토, 사례 확장 |
-| ④ UI·시연 | `src/web/App.tsx`, `src/web/styles.css` | 캡처 업로드·후보 선택·분석 재시도 UI |
+| ④ UI·시연 | `src/web/App.tsx`, `src/web/styles.css` | 실제 API 통합·캡처·후보·재시도 시연 검증 |
 | 공통 | `src/shared/types.ts`, [API 계약](docs/API.md) | 인터페이스 변경 시 관련 담당자 협의 |
 
 ## 핵심 기능
@@ -80,7 +80,7 @@ React·TypeScript·Express 기반의 새 프로젝트입니다. 합성 결제 3�
 
 ## 로컬 실행
 
-Node.js 20 이상과 npm이 필요합니다.
+Node.js **20.19 이상인 20.x 또는 22.12 이상**과 npm이 필요합니다. Vite의 지원 버전에 맞춘 조건이며, Node 21.x와 22.0–22.11은 지원하지 않습니다. 아래 명령은 Node.js 22.18.0에서 확인했습니다.
 
 ```sh
 npm ci
@@ -111,4 +111,4 @@ npm test
 | `src/server/status/` | 출처별 상태·문의 요약 |
 | `tests/` | 상태 판단·API 통합 검증 |
 
-실제 AWS 계정이나 카드사에 연결되었다고 가정하지 않습니다. Bedrock 호출 성공 여부와 배포 주소는 구현 후 검증 결과를 기록합니다.
+실제 AWS 계정이나 카드사에 연결되었다고 가정하지 않습니다. 실제 AI 호출과 배포 검증은 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에 실행 결과를 기록합니다. `.env.example`을 `.env`로 복사해 키를 설정하고 `npm start`로 실행합니다. API 키 값은 Git에 올리지 않습니다. 임시 Mock 선택기는 제거했으며 분석 버튼은 서버 API를 호출합니다.
