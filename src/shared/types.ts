@@ -11,7 +11,8 @@ export interface Evidence extends EvidenceFields {
 }
 export interface TimelineEvent {
   id: string;
-  kind: "payment" | "merchant_cancel" | "card_cancel";
+  // 취소 요청은 접수된 사실만 나타낸다. 가맹점 확인과 카드 반영은 각각의 근거로 판단한다.
+  kind: "payment" | "cancel_requested" | "merchant_cancel" | "card_cancel";
   date: string;
   source: string;
   label: string;
