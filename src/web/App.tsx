@@ -147,7 +147,7 @@ export function App() {
     <div className="app-bar"><a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-caption">결제 취소·환불 추적</span></a><span className="demo-badge">합성 데이터 · 시연 버전</span></div>
     <main id="workspace">
     <header className="page-header"><h1>내 결제의 취소 진행 상황</h1><p>결제를 선택하면 현재 상태와 다음에 할 일을 확인할 수 있어요.</p></header>
-    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. {aiConnected ? "AI 연결됨 · 취소 메일 텍스트나 캡처를 분석할 수 있어요. 결과는 고객이 확인한 뒤에만 결제에 연결돼요." : "AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요."}</span></div>
+    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. {aiConnected ? "AI 키 설정됨 · 분석 요청 후 결과를 확인해 주세요." : "AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요."}</span></div>
     <div className="workspace-layout"><aside className="payment-panel"><div className="list-heading"><h2>결제 내역</h2><span>{payments.length}건</span></div>
     {!loaded && <div className="empty-state" role="status">결제 내역을 불러오고 있어요…</div>}
     {loaded && payments.length === 0 && <div className="empty-state">{message ? "결제 내역을 불러오지 못했어요. 잠시 후 페이지를 새로고침해 주세요." : "등록된 결제 내역이 없어요."}</div>}
