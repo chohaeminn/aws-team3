@@ -23,6 +23,20 @@
 | POST | `/api/payments/:id/evidence` | 고객 확인 증빙 연결, `201 PaymentView` |
 | POST | `/api/demo/reset` | 합성 데이터 초기화, `{ "ok": true }` |
 
+## 결제 조회의 타임라인
+
+`GET /api/payments`와 `GET /api/payments/:id`는 거래마다 같은 `events`를 반환합니다. 각 항목의 `id`는 기록 식별자, `date`는 출처에 적힌 사건 날짜(`YYYY-MM-DD`), `source`는 자료 출처, `label`은 화면에 표시할 문구입니다.
+
+| `kind` | 날짜의 의미 | 출처 |
+| --- | --- | --- |
+| `payment` | 결제일 | 합성 카드 결제 기록 |
+| `cancel_requested` | 고객의 취소 요청 접수일 | 합성 쇼핑몰 요청 접수 내역 |
+| `merchant_cancel` | 고객이 확인한 증빙의 가맹점 취소일 | 고객 확인 취소 증빙 |
+| `card_cancel` | 카드 내역에 전액 취소가 반영된 날 | 합성 카드 취소 기록 |
+
+요청 접수 자료가 있는 거래에만 `cancel_requested`를 넣습니다. 취소 메일을 연결할 때는 그 메일의 취소일로 가맹점 이벤트를 추가하고, 요청일은 추정하지 않습니다.
+PAY-002에는 11월 14일 결제, 15일 요청, 16일 가맹점 확인, 18일 카드 반영이 있습니다. PAY-003에는 17일 결제와 18일 요청만 있어 가맹점·카드 상태가 모두 `unconfirmed`입니다.
+
 ## 고객 확인 증빙 연결
 
 `POST /api/payments/PAY-001/evidence`
