@@ -100,10 +100,6 @@ h3 { font-size: 16px; margin: 22px 0 14px; }
 .form-divider h3 { margin: 0; }
 .form-divider span { font-size: 12px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.mock-panel { margin: 18px 0; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: #fafbfd; }
-.mock-panel summary { font-size: 13px; color: var(--muted); cursor: pointer; }
-.mock-panel summary span { margin-left: 12px; font-size: 12px; }
-.mock-panel small { color: var(--muted); line-height: 1.8; }
 .upload { display: grid; gap: 10px; min-width: 0; margin: 22px 0; }
 .upload-title { font-size: 14px; color: #3d4c62; }
 .upload-drop { display: flex; align-items: center; flex-direction: column; gap: 12px; padding: 24px 16px; margin: 0; border: 1px dashed #aabde7; border-radius: 9px; background: #fafcff; cursor: pointer; text-align: center; }
@@ -181,7 +177,6 @@ footer button { padding: 8px 11px; background: transparent; font-size: 12px; }
   .next-action { padding: 16px; }
   .status-actions button { width: auto; flex: 1 1 100%; }
   .error, .notice { margin: 16px 20px; }
-  .mock-panel summary span { display: block; margin: 7px 0 0; }
   .form-divider { align-items: flex-start; flex-direction: column; }
   footer { align-items: flex-start; font-size: 11px; }
   footer>span { max-width: 65%; line-height: 1.8; }
