@@ -11,6 +11,7 @@ type MockMode = "off" | "success" | "multi" | "fail";
 type Capture = { id: string; file: File; url: string };
 const MAX_CAPTURES = 4;
 const MAX_CAPTURE_BYTES = 3 * 1024 * 1024;
+const MAX_TEXT_BYTES = 100 * 1024;
 const CAPTURE_TYPES = ["image/png", "image/jpeg"];
 const mockLabels: Record<MockMode, string> = { off: "사용 안 함 (실제 API)", success: "성공 (후보 1건)", multi: "후보 다수", fail: "실패 시뮬레이션" };
 async function analyzeWithFormData(text: string, images: File[]): Promise<AnalysisResult> {
@@ -27,6 +28,18 @@ async function analyzeWithFormData(text: string, images: File[]): Promise<Analys
     throw new Error(detail);
   }
   return data as AnalysisResult;
+}
+// 서버 응답을 입력란 값으로 바꾼다. 숫자 문자열("50,000")은 정수로, 날짜는 YYYY-MM-DD만 받고, 없는 값은 빈 값으로 둔다.
+function toFormFields(raw: unknown): EvidenceFields {
+  const src = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+  const amount = typeof src.amount === "number" ? src.amount : typeof src.amount === "string" ? Number(src.amount.replace(/[,\s]/g, "")) : NaN;
+  const date = typeof src.cancelledOn === "string" ? src.cancelledOn.trim().slice(0, 10) : "";
+  return {
+    orderNumber: typeof src.orderNumber === "string" ? src.orderNumber : "",
+    amount: Number.isSafeInteger(amount) && amount > 0 ? amount : 0,
+    currency: "KRW",
+    cancelledOn: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+  };
 }
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function formatSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`; }
@@ -49,12 +62,14 @@ export function App() {
   const [analysisError, setAnalysisError] = useState("");
   const [inputError, setInputError] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [aiConnected, setAiConnected] = useState(false);
   const capturesRef = useRef<Capture[]>([]);
   const trackRef = useRef<HTMLUListElement>(null);
   const [zoomId, setZoomId] = useState("");
   const zoomed = captures.find(c => c.id === zoomId);
   const selected = payments.find(p => p.id === selectedId);
   const candidates = candidateIds.map(id => payments.find(p => p.id === id)).filter((p): p is PaymentView => Boolean(p));
+  const textTooLong = new TextEncoder().encode(text).length > MAX_TEXT_BYTES;
   const canAnalyze = Boolean(text.trim()) || captures.length > 0;
   useEffect(() => { capturesRef.current = captures; }, [captures]);
   useEffect(() => {
@@ -65,6 +80,7 @@ export function App() {
   }, [zoomId]);
   function slide(dir: 1 | -1) { const el = trackRef.current; if (el) el.scrollBy({ left: dir * Math.max(160, el.clientWidth * 0.8), behavior: "smooth" }); }
   useEffect(() => () => capturesRef.current.forEach(c => URL.revokeObjectURL(c.url)), []);
+  useEffect(() => { request<{ aiConnected?: boolean }>("/api/health").then(h => setAiConnected(h.aiConnected === true)).catch(() => setAiConnected(false)); }, []);
   useEffect(() => { request<PaymentView[]>("/api/payments").then(setPayments).catch(e => setMessage(e.message)).finally(() => setLoaded(true)); }, []);
   function edit(patch: Partial<EvidenceFields>) { setFields(old => ({ ...old, ...patch })); setConfirmed(false); setNotice(""); }
   function select(id: string) { setSelectedId(id); setActiveTab("status"); setFields(emptyFields); setConfirmed(false); setNotice(""); setMessage(""); setCandidateIds([]); setAnalysisSource(""); setAnalysisError(""); }
@@ -95,6 +111,7 @@ export function App() {
     setCaptures(old => old.filter(c => c.id !== id)); setCaptureError(""); setConfirmed(false);
   }
   async function analyze() {
+    if (textTooLong) { setAnalysisError(""); setAnalysisSource(""); return; }
     if (!text.trim() && captures.length === 0) { setAnalysisError(""); setAnalysisSource(""); setInputError(true); return; }
     setInputError(false);
     setBusy(true); setConfirmed(false); setMessage(""); setNotice(""); setAnalysisError(""); setCandidateIds([]); setAnalysisSource("");
@@ -111,7 +128,7 @@ export function App() {
           candidatePaymentIds: mockMode === "multi" ? payments.map(p => p.id) : [base.id], provider: "bedrock",
         };
       }
-      setFields({ ...emptyFields, ...result.fields }); setConfirmed(false);
+      setFields(toFormFields(result.fields)); setConfirmed(false);
       setCandidateIds(result.candidatePaymentIds); setAnalysisSource(source);
       const many = result.candidatePaymentIds.length > 1;
       setNotice(`${source === "mock" ? "Mock 응답(AI 결과 아님): " : ""}${many ? "결제 후보가 여러 건이에요. 비교해서 맞는 결제를 선택해 주세요." : "추출 결과를 수정·확인하고, 선택한 결제와 대조해 주세요."}`);
@@ -130,7 +147,7 @@ export function App() {
     <div className="app-bar"><a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-caption">결제 취소·환불 추적</span></a><span className="demo-badge">합성 데이터 · 시연 버전</span></div>
     <main id="workspace">
     <header className="page-header"><h1>내 결제의 취소 진행 상황</h1><p>결제를 선택하면 현재 상태와 다음에 할 일을 확인할 수 있어요.</p></header>
-    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요.</span></div>
+    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. {aiConnected ? "AI 연결됨 · 취소 메일 텍스트나 캡처를 분석할 수 있어요. 결과는 고객이 확인한 뒤에만 결제에 연결돼요." : "AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요."}</span></div>
     <div className="workspace-layout"><aside className="payment-panel"><div className="list-heading"><h2>결제 내역</h2><span>{payments.length}건</span></div>
     {!loaded && <div className="empty-state" role="status">결제 내역을 불러오고 있어요…</div>}
     {loaded && payments.length === 0 && <div className="empty-state">{message ? "결제 내역을 불러오지 못했어요. 잠시 후 페이지를 새로고침해 주세요." : "등록된 결제 내역이 없어요."}</div>}
@@ -166,6 +183,7 @@ export function App() {
         setFields({ orderNumber: selected.orderNumber, amount: selected.amount, currency: selected.currency, cancelledOn: "2026-11-19" });
         setConfirmed(false); setMessage(""); setAnalysisError(""); setInputError(false); setCandidateIds([]); setAnalysisSource(""); setNotice("합성 예시를 불러왔습니다. AI 분석 결과가 아닙니다.");
       }}>합성 예시 불러오기</button></div>
+      {textTooLong && <p className="error" role="alert">취소 메일 텍스트가 100 KiB를 넘어요. 내용을 줄여서 다시 입력해 주세요.</p>}
       {inputError && !canAnalyze && <p className="error" role="alert">취소 메일 텍스트 또는 캡처 이미지를 입력해 주세요.</p>}
       {analysisError && <div className="error analysis-error" role="alert"><strong>증빙을 분석하지 못했어요{analysisSource === "mock" ? " (Mock)" : ""}.</strong><p>잠시 후 다시 시도하거나, 아래 입력란에 직접 입력해 주세요. 입력한 내용과 캡처는 그대로 유지돼요.</p><p className="error-detail">{analysisError.startsWith("서버가 아직") ? analysisError : `상세: ${analysisError}`}</p><div className="actions"><button type="button" disabled={busy} onClick={() => void analyze()}>분석 재시도</button></div></div>}
       {candidates.length > 0 && <div className="candidates"><h3>결제 후보 {candidates.length}건{analysisSource === "mock" ? " · Mock" : ""}</h3>

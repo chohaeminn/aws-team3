@@ -39,5 +39,5 @@ export interface ApiError { code: string; message: string }
 export interface AnalysisResult {
   fields: Partial<EvidenceFields>;
   candidatePaymentIds: string[];
-  provider: "bedrock";
+  provider: "bedrock" | "gemini";
 }

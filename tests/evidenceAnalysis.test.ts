@@ -107,6 +107,9 @@ test("유효하지 않은 입력은 분석기 호출 전에 거절한다", async
 });
 
 test("기본 서버는 분석 미연결을 응답한다", async t => {
+  const savedKey = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  t.after(() => { if (savedKey !== undefined) process.env.GEMINI_API_KEY = savedKey; });
   const { base, post } = await startApp(t);
   const form = new FormData();
   form.append("images", new Blob([imageBytes], { type: "image/png" }), "capture.png");
@@ -114,7 +117,7 @@ test("기본 서버는 분석 미연결을 응답한다", async t => {
   assert.equal(response.status, 501);
   const body = await response.json();
   assert.deepEqual(body, { code: "AI_NOT_CONFIGURED", message: body.message });
-  assert.match(body.message, /Bedrock/);
+  assert.match(body.message, /AI 분석/);
   assert.equal((await fetch(base + "/api/health").then(response => response.json())).aiConnected, false);
 });
 
