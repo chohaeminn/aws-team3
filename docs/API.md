@@ -16,7 +16,7 @@
 
 | 메서드 | 경로 | 결과 |
 | --- | --- | --- |
-| GET | `/api/health` | 서버 상태, 합성 데이터·AI 연결 여부 |
+| GET | `/api/health` | 서버 상태, 합성 데이터, `GEMINI_API_KEY` 설정 여부(`aiConnected`) |
 | GET | `/api/payments` | `PaymentView[]` |
 | GET | `/api/payments/:id` | `PaymentView` |
 | POST | `/api/evidence/analyze` | `200 AnalysisResult`, 키 미설정 시 `501 AI_NOT_CONFIGURED`, 외부 AI 호출 실패 시 `502 AI_ANALYSIS_FAILED` |
@@ -87,7 +87,7 @@ interface AnalysisResult {
   provider: "bedrock" | "gemini";
 }
 ```
-현재 서버는 `GEMINI_API_KEY`가 설정되면 Gemini(`provider: "gemini"`)를 호출합니다. 모델은 `GEMINI_MODEL`로 바꿀 수 있고 기본값은 `gemini-3.5-flash-lite`입니다. `/api/health`의 `aiConnected`는 키 설정 여부를 반영합니다. `candidatePaymentIds`는 추출한 주문번호·금액·통화가 모두 일치하는 결제 ID입니다. 응답 예시는 다음과 같습니다.
+현재 서버는 `GEMINI_API_KEY`가 설정되면 Gemini(`provider: "gemini"`)를 호출합니다. 모델은 `GEMINI_MODEL`로 바꿀 수 있고 기본값은 `gemini-3.5-flash-lite`입니다. `/api/health`의 `aiConnected`는 `GEMINI_API_KEY` 환경 변수가 설정되어 있는지만 나타냅니다. 실제 외부 API 호출 성공이나 키·모델의 유효성은 보장하지 않으며, 호출이 실패하면 분석 요청이 `502 AI_ANALYSIS_FAILED`를 반환합니다. `candidatePaymentIds`는 추출한 주문번호·금액·통화가 모두 일치하는 결제 ID입니다. 응답 예시는 다음과 같습니다.
 ```json
 {
   "fields": { "orderNumber": "ORDER-001", "amount": 50000, "currency": "KRW", "cancelledOn": "2026-11-19" },

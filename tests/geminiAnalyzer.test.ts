@@ -153,3 +153,18 @@ test("null 값은 없는 값으로 처리하고 후보를 만들지 않는다", 
   assert.deepEqual(wrapped.fields, { orderNumber: "ORDER-001", amount: 50000, currency: "KRW", cancelledOn: "2026-11-19" });
   assert.equal(JSON.stringify(await run({ orderNumber: null, amount: null, currency: null, cancelledOn: null })), JSON.stringify({ fields: {}, candidatePaymentIds: [], provider: "gemini" }));
 });
+
+test("HTTP 상태 코드별로 사용자 안내 메시지를 나눈다", async t => {
+  t.mock.method(console, "error", () => {});
+  const messageFor = async (status: number) => {
+    const analyze = createGeminiAnalyzer({ apiKey: "k", fetchImpl: async () => new Response("{}", { status }) });
+    return analyze({ text: "x", images: [] }).then(() => "", (error: Error) => error.message);
+  };
+  const keyMessage = (status: number) => `AI API 키가 유효하지 않거나 접근 권한이 없어요. 서버의 GEMINI_API_KEY 설정을 확인해 주세요. (HTTP ${status})`;
+  assert.equal(await messageFor(401), keyMessage(401));
+  assert.equal(await messageFor(403), keyMessage(403));
+  assert.equal(await messageFor(429), "AI 요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요. (HTTP 429)");
+  for (const status of [400, 404, 500, 503]) {
+    assert.equal(await messageFor(status), `AI 서버가 오류를 반환했어요. 잠시 후 다시 시도해 주세요. (HTTP ${status})`);
+  }
+});
