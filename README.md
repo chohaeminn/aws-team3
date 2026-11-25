@@ -82,12 +82,47 @@ React·TypeScript·Express 기반의 새 프로젝트입니다. 합성 결제 3�
 
 Node.js **20.19 이상인 20.x 또는 22.12 이상**과 npm이 필요합니다. Vite의 지원 버전에 맞춘 조건이며, Node 21.x와 22.0–22.11은 지원하지 않습니다. 아래 명령은 Node.js 22.18.0에서 확인했습니다.
 
+### 1. 의존성 설치
+
 ```sh
-npm ci
-npm start
+npm install
 ```
 
-브라우저에서 **http://localhost:3000**에 접속합니다. 현재 서버는 로컬 PC에서만 접속됩니다.
+`package-lock.json`의 버전 그대로 설치하려면 `npm ci`를 사용합니다.
+
+### 2. 환경 변수 설정 (AI 분석을 쓸 때)
+
+`.env.example`을 `.env`로 복사하고 `GEMINI_API_KEY`에 [Google AI Studio](https://aistudio.google.com/apikey)에서 발급한 무료 키를 넣습니다.
+
+```sh
+cp .env.example .env        # Windows cmd: copy .env.example .env
+```
+
+| 변수 | 필수 | 설명 |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | AI 분석 시 필수 | 비어 있으면 분석 요청이 `501 AI_NOT_CONFIGURED`를 반환합니다. 직접 입력·합성 예시 흐름은 키 없이도 동작합니다. |
+| `GEMINI_MODEL` | 선택 | 기본값 `gemini-3.5-flash-lite`. 404가 나면 사용 가능한 모델로 바꿉니다. |
+| `GEMINI_THINKING_BUDGET` | 선택 | 기본값 0. 모델이 이 설정을 거부해 400이 나면 `none`으로 설정합니다. |
+| `HOST`, `PORT` | 선택 | 기본값 `127.0.0.1`, `3000` |
+
+서버는 시작할 때 `.env`를 자동으로 읽습니다. 이미 설정된 환경 변수는 덮어쓰지 않습니다. `.env`는 `.gitignore`에 포함돼 있으니 키를 커밋하지 마세요. `.env`를 수정한 뒤에는 서버를 다시 시작해야 합니다.
+
+### 3. 빌드와 실행
+
+```sh
+npm run build   # 화면을 dist/web에 빌드
+npm start       # 빌드 후 서버 실행
+```
+
+`npm start`는 `npm run build`를 먼저 실행하므로, 화면 코드를 바꾸지 않았다면 `npm start`만 실행해도 됩니다. 서버가 켜지면 `환불 추적 시연: http://localhost:3000`이 출력됩니다.
+
+### 4. 접속과 확인
+
+브라우저에서 **http://localhost:3000**에 접속합니다. 기본 설정에서는 로컬 PC에서만 접속됩니다.
+
+- `http://localhost:3000/api/health`의 `aiConnected`는 `GEMINI_API_KEY` 설정 여부만 나타냅니다. 키나 모델이 실제로 유효한지는 분석을 한 번 요청해야 알 수 있습니다.
+- 분석이 실패하면 화면에 안내와 ‘분석 재시도’가 나타나고, 상태 코드와 Google 오류 본문은 서버 콘솔에 출력됩니다(API 키는 가려집니다).
+- 업로드 제약: 이미지는 PNG·JPG, 최대 4장, 장당 3 MiB 이하. 취소 메일 텍스트는 100 KiB 이하입니다.
 
 빠른 시연: 첫 거래 선택 → 합성 예시 불러오기 → 값 확인 → 확인 체크 → 결제에 연결 → 카드 반영 미확인 상태와 문의자료 확인·복사. 두 번째 거래는 카드 반영 확인 사례입니다. 오른쪽 아래 ‘시연 초기화’로 처음 상태로 되돌립니다.
 
@@ -107,8 +142,8 @@ npm test
 | `src/server/` | Express API 및 로컬 서비스 |
 | `src/shared/` | 공유 타입 |
 | `src/server/payments/` | 합성 결제 3건·메모리 저장소 |
-| `src/server/evidence/` | AI 어댑터 연결 지점 |
+| `src/server/evidence/` | Gemini 분석기·요청 파싱 |
 | `src/server/status/` | 출처별 상태·문의 요약 |
 | `tests/` | 상태 판단·API 통합 검증 |
 
-실제 AWS 계정이나 카드사에 연결되었다고 가정하지 않습니다. 실제 AI 호출과 배포 검증은 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에 실행 결과를 기록합니다. `.env.example`을 `.env`로 복사해 키를 설정하고 `npm start`로 실행합니다. API 키 값은 Git에 올리지 않습니다. 임시 Mock 선택기는 제거했으며 분석 버튼은 서버 API를 호출합니다.
+실제 AWS 계정이나 카드사에 연결되었다고 가정하지 않습니다. 실제 AI 호출과 배포 검증은 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에 실행 결과를 기록합니다. API 키 값은 Git에 올리지 않습니다. 임시 Mock 선택기는 제거했으며 분석 버튼은 서버 API를 호출합니다.
