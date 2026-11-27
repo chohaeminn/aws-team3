@@ -31,6 +31,8 @@ jobs:
       COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
       COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
       COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
+      # 비어 있으면 SQLite로 배포한다. 스택 출력 PaymentTable 값을 aws-demo 변수에 등록하면 DynamoDB로 전환된다.
+      PAYMENT_TABLE: ${{ vars.PAYMENT_TABLE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

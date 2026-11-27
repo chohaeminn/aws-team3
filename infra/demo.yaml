@@ -112,6 +112,27 @@ Resources:
           - Id: ExpireBuilds
             Status: Enabled
             ExpirationInDays: 7
+  PaymentTable:
+    # Payments, evidence, timeline, audit and idempotency records (docs/DYNAMODB.md). Survives instance replacement and redeploys.
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
   Role:
     Type: AWS::IAM::Role
     Properties:
@@ -141,6 +162,19 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/apac.amazon.nova-lite-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/amazon.nova-lite-v1:0
+        - PolicyName: PaymentTableAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Only the operations the app uses. No Scan, DeleteItem, DeleteTable or schema changes.
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:ConditionCheckItem
+                Resource: !GetAtt PaymentTable.Arn
   Profile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -177,3 +211,5 @@ Outputs:
     Value: !Ref Instance
   ArtifactBucket:
     Value: !Ref Artifacts
+  PaymentTable:
+    Value: !Ref PaymentTable
