@@ -6,6 +6,13 @@ PR과 main 변경은 GitHub Actions에서 Node.js 22.18.0과 24로 검사합니�
 
 `.github/workflows/ci.yml`은 `npm ci`, 애플리케이션·테스트·스크립트의 타입 검사, 프런트엔드 빌드, 전체 테스트, 셸 구문 검사와 CloudFormation lint를 실행합니다. 테스트에는 실제 RSA 서명 검증, 고객 간 접근 통제, 독립 프로세스 동시 쓰기, DB 오류 주입과 OAuth PKCE 콜백 검증이 포함됩니다.
 
+`npm test`는 DynamoDB 전용 항목을 건너뜁니다. 이를 보완하기 위해 별도 작업 `DynamoDB Local contract`가 AWS 공식 DynamoDB Local 3.3.2 컨테이너(digest 고정)를 띄워 다음 테스트를 실행합니다. AWS 계정과 비용은 필요하지 않습니다.
+
+- [저장소 계약 테스트](../tests/paymentStoreContract.test.ts)
+- [소유권 이관 테스트](../tests/ownershipMigration.test.ts)
+
+배포 워크플로도 이 CI를 재사용하므로, 이 작업이 실패하면 배포도 진행되지 않습니다.
+
 Node.js 24 작업은 추가로 권한 경계 HTTP 실험을 실행하고, 해당 실행에서 검사한 소스·정적 빌드·lockfile을 `refund-tracker.tgz`로 묶습니다. 테스트 결과는 14일, 배포 아티팩트는 7일간 보관합니다. 아티팩트에는 `.env`, SQLite 파일, `.deploy`의 인증 캐시가 들어가지 않습니다.
 
 PR 코드에는 AWS 자격 증명이 전달되지 않습니다. CI 권한은 `contents: read`이며 액션은 확인한 공식 릴리스의 전체 커밋 SHA로 고정했습니다. AWS 계정이 없어도 CI를 실행할 수 있습니다.
@@ -27,6 +34,7 @@ GitHub environment에는 다음 Variables를 설정합니다. 모두 리소스 �
 | `COGNITO_USER_POOL_ID` | 데모 스택의 CognitoUserPoolId |
 | `COGNITO_CLIENT_ID` | 데모 스택의 CognitoClientId |
 | `COGNITO_DOMAIN` | 데모 스택의 CognitoDomain |
+| `PAYMENT_TABLE` | 데모 스택의 PaymentTable. 비우면 SQLite를 사용합니다 ([DynamoDB 전환](DYNAMODB.md#도쿄-데모-스택-전환과-복구-35)) |
 
 **environment의 Deployment branches and tags는 main만 허용하도록 설정합니다.** OIDC trust는 `repo:chohaeminn/aws-team3:environment:aws-demo`와 audience를 검사합니다. environment가 있으면 OIDC subject에 브랜치가 직접 포함되지 않으므로 main 제한은 environment 설정으로도 적용해야 합니다.
 

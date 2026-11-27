@@ -62,3 +62,32 @@ jobs:
           name: validated-release-${{ github.sha }}
           path: .deploy/refund-tracker.tgz
           retention-days: 7
+  dynamodb-contract:
+    # npm test skips the DynamoDB-only cases; run the shared store contract against the official emulator.
+    name: DynamoDB Local contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Start DynamoDB Local 3.3.2
+        run: |
+          docker run -d --name dynamodb-local -p 127.0.0.1:8000:8000 \
+            amazon/dynamodb-local:3.3.2@sha256:6ada631ec7aa5fc83446855eb17233e3dad184fec47477e8140c6c569cfe0c86 \
+            -jar DynamoDBLocal.jar -inMemory -disableTelemetry
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:8000; then exit 0; fi
+            sleep 1
+          done
+          docker logs dynamodb-local
+          exit 1
+      - name: Store contract and ownership migration on DynamoDB Local
+        env:
+          DYNAMODB_ENDPOINT: http://127.0.0.1:8000
+        run: node --import tsx --test tests/paymentStoreContract.test.ts tests/ownershipMigration.test.ts

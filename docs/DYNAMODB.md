@@ -93,7 +93,7 @@ Expand-Archive .dynamodb-local\ddb.zip -DestinationPath .dynamodb-local -Force
 npm run test:dynamodb
 ```
 
-`npm run test:dynamodb`는 빈 포트에 인메모리 DynamoDB Local을 띄웁니다. 이어서 [저장소 계약 테스트](../tests/paymentStoreContract.test.ts)를 SQLite와 DynamoDB에 똑같이 실행한 뒤 에뮬레이터를 종료합니다. `npm test`에서는 DynamoDB 항목을 건너뛰고 SQLite 항목만 실행합니다.
+`npm run test:dynamodb`는 빈 포트에 인메모리 DynamoDB Local을 띄웁니다. 이어서 [저장소 계약 테스트](../tests/paymentStoreContract.test.ts)를 SQLite와 DynamoDB에 똑같이 실행한 뒤 에뮬레이터를 종료합니다. `npm test`에서는 DynamoDB 항목을 건너뛰고 SQLite 항목만 실행합니다. GitHub Actions에서는 별도 작업이 DynamoDB Local 컨테이너로 같은 테스트를 실행합니다([CI와 CD](CI_CD.md)).
 
 계약 테스트가 확인하는 항목은 다음과 같습니다.
 
@@ -106,3 +106,18 @@ npm run test:dynamodb
 - 트랜잭션 실패 주입 시 전체 롤백 (DynamoDB)
 
 DynamoDB Local은 실제 서비스와 처리량·지연·제한이 다릅니다. 로컬 통과를 AWS 실제 검증으로 기록하지 않습니다.
+
+### 실제 AWS DynamoDB 검증 (2026-11-27 KST)
+
+같은 계약·이관 테스트를 도쿄 리전의 실제 DynamoDB에서도 실행했습니다.
+
+- **방법:** 테스트마다 임시 테이블 `refund-tracker-verify-*`을 만들고 끝나면 삭제했습니다. 시연 테이블은 사용하지 않았습니다.
+- **인증:** 로컬 PC의 관리자 자격 증명을 썼습니다. 테이블 생성·삭제 권한이 필요해 EC2 역할로는 실행하지 않았습니다.
+
+| 실행 | 결과 |
+| --- | --- |
+| 계약 테스트, 수정 전 | 6/7. 네 인스턴스가 빈 테이블을 동시에 열 때 시드 트랜잭션이 `TransactionConflict`로 실패 |
+| 계약 테스트, 수정 후 | 7/7. 실패했던 항목을 2회 더 반복해 통과 |
+| 소유권 이관 테스트 | 3/3 |
+
+에뮬레이터에서는 이 충돌이 재현되지 않았습니다. 시드도 다른 쓰기처럼 백오프 후 다시 읽고 재시도하도록 고쳤습니다(#38).
