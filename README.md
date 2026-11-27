@@ -13,12 +13,14 @@
   <img src="https://img.shields.io/badge/React-19-149ECA?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React 19" />
   <img src="https://img.shields.io/badge/TypeScript-7-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript 7" />
   <img src="https://img.shields.io/badge/Express-5-333333?style=flat-square&amp;logo=express&amp;logoColor=white" alt="Express 5" />
-  <img src="https://img.shields.io/badge/AI-Gemini-8E75B2?style=flat-square&amp;logo=googlegemini&amp;logoColor=white" alt="Gemini AI" />
-  <img src="https://img.shields.io/badge/Stage-Local_MVP-14B8A6?style=flat-square" alt="로컬 MVP 단계" />
+  <img src="https://img.shields.io/badge/AI-Amazon_Bedrock-FF9900?style=flat-square" alt="Amazon Bedrock" />
+  <img src="https://img.shields.io/badge/Database-DynamoDB-4053D6?style=flat-square" alt="Amazon DynamoDB" />
+  <img src="https://img.shields.io/badge/Deploy-AWS_EC2-FF9900?style=flat-square" alt="AWS EC2 배포" />
 </p>
 
 <p align="center">
   <a href="#features">핵심 기능</a> ·
+  <a href="#aws">AWS 활용</a> ·
   <a href="#difference">차별점</a> ·
   <a href="#how-it-works">사용 흐름</a> ·
   <a href="#quick-start">실행 방법</a> ·
@@ -32,6 +34,33 @@
 쇼핑몰에서 취소 완료 안내를 받았어도 카드 내역에는 결제가 남아 있을 수 있습니다. 고객은 취소 메일과 카드 내역을 따로 열어 주문번호·금액·날짜를 대조하고, 문의할 때 같은 정보를 다시 정리해야 합니다.
 
 **Refund Tracker는 흩어진 증빙을 결제 건별로 모아, 확인된 사실과 추가로 확인할 내용을 구분합니다.** 취소 안내를 받은 뒤 카드 반영 여부를 확인하고 문의자료를 준비하는 과정을 한 화면에서 이어갑니다.
+
+<a id="aws"></a>
+
+## AWS를 활용한 개선
+
+로컬에서 Gemini API와 메모리 저장으로 시작한 서비스를 **EC2에서 실행하고, Bedrock으로 증빙을 분석하며, DynamoDB에 기록을 보관하는 구조**로 확장했습니다. 발표에서는 다음 세 가지 개선에 집중합니다.
+
+| 개선 | 기존 문제 | 적용한 방식 |
+| --- | --- | --- |
+| **Bedrock AI 증빙 분석** | 로컬 Gemini API 연동에서 AWS 배포 환경의 AI 분석으로 확장 필요 | Amazon Bedrock의 Nova Lite로 취소 메일·PNG/JPEG에서 주문번호·금액·통화·취소일 추출. EC2 IAM 역할로 인증하며, 고객 확인 후에만 증빙 연결 |
+| **DynamoDB 영속 저장** | 초기 메모리 저장은 서버를 종료하면 기록 소멸 | SQLite 영속화 단계를 거쳐 DynamoDB에 결제·증빙·타임라인·감사·재전송 결과 저장. 앱 프로세스와 데이터를 분리하고 기존 시연 고객 소유권 이관 |
+| **중복 저장 방지** | 응답 유실 후 재시도할 때 최초 처리 결과를 알 수 없음 | 고객별 멱등성 키와 요청 내용 비교. 같은 키·같은 내용은 한 번 저장하고 최초 응답 재현. 같은 키·다른 내용은 거부하고, 같은 결제·취소일의 증빙은 다른 키로 요청해도 중복 방지 |
+
+증빙·이벤트·감사·멱등성 결과는 DynamoDB 트랜잭션 하나로 저장합니다. 중간 단계가 실패하면 일부 기록만 남지 않도록 전체 작업을 취소합니다.
+
+```mermaid
+flowchart LR
+    U[사용자] --> C[Cognito 로그인]
+    C --> E[EC2 · Express API]
+    E --> B[Bedrock · Nova Lite 증빙 분석]
+    B --> V[추출값 수정 · 고객 확인]
+    V --> E
+    E --> D[DynamoDB · 거래 및 증빙 저장]
+    G[GitHub Actions · 테스트와 수동 실행 배포] --> E
+```
+
+도쿄 리전(`ap-northeast-1`)의 기존 EC2에 [DynamoDB 전환 코드 배포가 성공](https://github.com/chohaeminn/aws-team3/actions/runs/46010186206)했습니다. Bedrock 실제 텍스트·이미지 직접 호출과 앱 텍스트 분석 기록은 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에 있습니다. DynamoDB 저장소·이관 계약 테스트는 로컬에서 **16개 모두 통과**했고 CI에서도 자동 실행합니다. 실제 배포 후 재시작 보존·접근 통제와 앱 이미지 분석의 최종 검증은 [#35](https://github.com/chohaeminn/aws-team3/issues/35)·[#32](https://github.com/chohaeminn/aws-team3/issues/32)·[#33](https://github.com/chohaeminn/aws-team3/issues/33)에 기록합니다.
 
 <a id="features"></a>
 
@@ -87,16 +116,16 @@ flowchart LR
 
 ## 구현 범위
 
-현재는 **합성 결제 3건의 원화 전액 취소 흐름을 다루는 로컬 MVP**입니다.
+현재는 **합성 결제 3건의 원화 전액 취소 흐름을 다루는 AWS 시연 서비스**입니다.
 
 | 구분 | 현재 상태 |
 | --- | --- |
 | 화면·API | 결제 조회, 증빙 입력·수정·확인·연결, 타임라인, 상태 안내, 요약 복사, 시연 초기화 구현 |
-| AI 연동 | Gemini·Bedrock 텍스트·이미지 분석과 실패 시 재시도 구현. 실제 분석에는 공급자별 인증 필요 |
+| AI 연동 | AWS 시연은 Bedrock Nova Lite 사용. 텍스트·이미지 분석과 실패 시 재시도 구현. 로컬 Gemini 어댑터도 유지 |
 | 예시 데이터 | ‘합성 예시 불러오기’로 키 없이 흐름 확인 가능. AI 분석 결과와 구분 |
-| 접근 제어 | Cognito access token 검증, 고객별 거래·AI 후보 격리, 관리자 전용 초기화. 실제 Cognito 로그인은 AWS 설정 후 확인 |
-| 저장 | SQLite 파일에 증빙·이벤트·멱등성 결과·감사 기록 저장. 서버 재시작 후 보존, 시연 초기화 시 합성 데이터로 복원 |
-| 외부 연동 | 실제 카드사 미연동. Bedrock 어댑터·AWS 배포 코드 준비, 실제 AWS 배포·호출 검증 대기 |
+| 접근 제어 | Cognito access token 검증, 고객별 거래·AI 후보 격리, 관리자 전용 초기화. 고객 A 로그인 및 앱 텍스트 분석 기록 확보 |
+| 저장 | AWS에서는 DynamoDB 사용. 로컬 기본값은 SQLite. 증빙·이벤트·멱등성 결과·감사 기록을 트랜잭션으로 저장 |
+| 배포·외부 연동 | 도쿄 EC2, S3 배포 아티팩트, SSM 설치·접속, GitHub Actions OIDC 배포. 실제 카드사 미연동 |
 
 API 키 설정 여부와 실제 AI 호출 성공 여부는 구분합니다. 실행 환경에서의 AI 호출·배포 검증 결과는 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에서 관리합니다.
 
@@ -110,7 +139,7 @@ Node.js **22.18 이상인 22.x 또는 24 이상**과 npm이 필요합니다. Nod
 npm ci
 ```
 
-AI 분석을 사용하려면 `.env.example`을 `.env`로 복사하고 `GEMINI_API_KEY`를 입력합니다. 서버는 시작할 때 `.env`를 읽습니다. API 키는 Git에 올리지 않습니다.
+다음은 **로컬 Gemini 실행 방법**입니다. AWS Bedrock·DynamoDB 실행은 [AWS 설정 안내](docs/AWS_MANUAL_SETUP.md)와 [DynamoDB 전환 안내](docs/DYNAMODB.md)를 따릅니다. `.env.example`을 `.env`로 복사하고 `GEMINI_API_KEY`를 입력합니다. 서버는 시작할 때 `.env`를 읽습니다. API 키는 Git에 올리지 않습니다.
 
 ```dotenv
 GEMINI_API_KEY=your_api_key
@@ -139,9 +168,9 @@ npm start
 | --- | --- | --- |
 | 프런트엔드 | React · TypeScript · Vite | [`src/web/`](src/web/) |
 | 서버 | Express · TypeScript | [`src/server/`](src/server/) |
-| 증빙 분석 | Gemini·Bedrock API 어댑터 | [`src/server/evidence/`](src/server/evidence/) |
+| 증빙 분석 | Amazon Bedrock Nova Lite, 로컬 Gemini 어댑터 | [`src/server/evidence/`](src/server/evidence/) |
 | 상태·문의자료 | 출처별 상태 계산과 문의용 요약 생성 | [`src/server/status/`](src/server/status/) |
-| 결제 저장 | SQLite 트랜잭션·멱등성·감사 기록과 합성 데이터 | [`src/server/payments/`](src/server/payments/) |
+| 결제 저장 | AWS DynamoDB / 로컬 SQLite, 트랜잭션·멱등성·감사 기록 | [`src/server/payments/`](src/server/payments/) |
 | 공유 계약 | 클라이언트·서버 공통 타입 | [`src/shared/types.ts`](src/shared/types.ts) |
 
 검증 명령:
