@@ -38,7 +38,7 @@ npm start
 
 ## AWS 배포 준비
 
-현재 AWS 리소스와 배포 URL은 없습니다. 계정 `727847798739`·서울 리전·단일 EC2 및 SSM 접속을 대상으로 [AWS 배포·Bedrock 안내](AWS_DEPLOYMENT.md)와 배포 스크립트를 준비했습니다. 실제 배포·호출 확인 전입니다. 아래는 기존 수동 배포 시 참고사항입니다.
+계정 `727847798739`의 도쿄 `ap-northeast-1` 스택 `refund-tracker-demo`에 단일 EC2가 실행 중이며, 공개 URL 없이 SSM 포트 포워딩으로 접속합니다. 서울 리전은 초기 계획입니다. 절차는 [AWS 배포·Bedrock 안내](AWS_DEPLOYMENT.md)를 따르며, 실제 Bedrock 호출 결과는 아래 결과 기록 양식에 있습니다. 아래는 기존 수동 배포 시 참고사항입니다.
 
 1. Node 지원 버전에서 `npm ci`와 `npm run build`를 실행하고 `npm start`로 서버를 구동합니다. 현재 시작 명령도 빌드를 수행하므로 빌드 도구가 포함된 의존성이 필요합니다.
 2. 배포 환경에서 `HOST=0.0.0.0`, `PORT`와 Gemini 환경 변수를 설정합니다. 로컬 기본값은 `127.0.0.1:3000`입니다. 키는 배포 환경의 비밀 설정으로 주입합니다.
@@ -54,6 +54,7 @@ npm start
 | 로컬 미커밋 변경 | 2026-11-27 (KST) | Windows / Node.js 22.18.0 | typecheck·build·테스트 52건, YAML 파싱·PowerShell 구문 | 로컬 / Bedrock 모의 응답 | 통과. AWS 템플릿 서비스 검증·배포·실제 Bedrock 호출·팀원 접속은 미실행 |
 | 로컬 미커밋 변경 | 2026-11-27 (KST) | Windows / Node.js 22.18.0 / SQLite | typecheck·build·테스트 60건, HTTP 재전송·실제 프로세스 재시작, 프로세스 4개 동시 쓰기, 3단계 오류 주입 | 로컬 실측 / 합성 데이터 | 통과. [전후 측정과 범위](BACKEND_PORTFOLIO.md). AWS 실제 배포·호출은 미실행 |
 | 보안 및 CI 추가 변경 | 2026-11-27 (KST) | Windows / Node.js 22.18.0 / 로컬 RSA 서명 | 타입 검사·빌드·테스트 67건, 권한 경계 HTTP 100회, CloudFormation lint, 셸 구문 검사 | 로컬 실측 / 합성 키·사용자 | 통과. 실제 Cognito 로그인·CD·Bedrock 호출은 AWS 설정 후 확인 |
-| `c772ec0` (EC2 배포본의 `bedrock.ts`·`analyzer.ts`·`index.ts`·`package-lock.json` 해시 일치) | 2026-11-27 (KST) | 도쿄 `ap-northeast-1` 기존 EC2 t3.small / Node.js 22 / EC2 역할 인증 / `apac.amazon.nova-lite-v1:0` | EC2에서 SSM으로 앱의 `createBedrockAnalyzer`를 직접 실행. 합성 취소 메일 텍스트 1건, 합성 PNG 1건(520×220) | **실제 Bedrock 호출** / 합성 증빙 | 통과. 텍스트 655ms·PNG 834ms, 두 건 모두 `ORDER-001`·`50000`·`KRW`·`2026-11-19` 4개 값 일치, 후보 `PAY-001`, `provider: "bedrock"`. 앱 HTTP 경로(브라우저 로그인 → `/api` 분석)의 공급자 선택과 고객 확인 전 결제 불변은 미확인(#33) |
+| `c772ec0` (EC2 배포본의 `bedrock.ts`·`analyzer.ts`·`index.ts`·`package-lock.json` 해시 일치) | 2026-11-27 (KST) | 도쿄 `ap-northeast-1` 기존 EC2 t3.small / Node.js 22 / EC2 역할 인증 / `apac.amazon.nova-lite-v1:0` | EC2에서 SSM으로 앱의 `createBedrockAnalyzer`를 직접 실행. 합성 취소 메일 텍스트 1건, 합성 PNG 1건(520×220) | **실제 Bedrock 호출** / 합성 증빙 | 통과. 텍스트 655ms·PNG 834ms, 두 건 모두 `ORDER-001`·`50000`·`KRW`·`2026-11-19` 4개 값 일치, 후보 `PAY-001`, `provider: "bedrock"`. 앱 HTTP 경로는 다음 행 |
+| `c772ec0` (위와 동일 배포본) | 2026-11-27 18:20–18:24 (KST) | 위와 동일, `/etc/refund-tracker.env`의 `AI_PROVIDER=bedrock` | Cognito 고객 A 로그인 → 브라우저에서 합성 취소 메일 텍스트 AI 분석. 연결 버튼은 누르지 않음. 분석 전후 SQLite 5개 테이블 행 수·내용 해시 비교 | **실제 앱 경로** / 합성 증빙 | 통과. `POST /api/evidence/analyze` 200(646ms), Bedrock 오류 로그 없음, 화면 추출값 4개 일치·후보 1건. 분석 전후 5개 테이블 동일, `PAY-001` 증빙 0건·이벤트 1건 유지. 응답의 `provider` 값은 서버 로그에 남지 않아 설정값과 오류 부재로 판단. 앱 경로 이미지 분석은 팀원 캡처를 받아 진행 예정(#33) |
 
 직접 입력과 AI 추출 확인의 시간을 같은 합성 증빙으로 각각 측정하고, 최종 주문번호·금액·통화·취소일 4개 값의 정답 일치 개수도 기록합니다. 측정 전 성과 수치를 기입하지 않습니다.
