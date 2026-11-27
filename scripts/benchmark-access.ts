@@ -15,7 +15,7 @@ await mkdir(".qa", { recursive: true });
 const work = await mkdtemp(resolve(".qa/access-"));
 const path = resolve(work, "payments.sqlite");
 const repository = new PaymentRepository(path);
-repository.assignUnclaimed(customerA);
+await repository.assignUnclaimed(customerA);
 const db = new DatabaseSync(path);
 db.prepare("UPDATE payments SET owner_id=? WHERE id='PAY-003'").run(customerB);
 db.close();

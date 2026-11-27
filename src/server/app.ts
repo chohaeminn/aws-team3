@@ -3,14 +3,15 @@ import type { ErrorRequestHandler } from "express";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createPrincipalResolver, type Principal, type PrincipalResolver } from "./auth/principal.js";
-import { PaymentRepository, PaymentError } from "./payments/repository.js";
+import { PaymentRepository } from "./payments/repository.js";
+import { PaymentError, type PaymentStore } from "./payments/contract.js";
 import { toPaymentView } from "./status/paymentStatus.js";
 import { analyzeEvidence, AnalysisFailed, AnalysisUnavailable, isAiConfigured } from "./evidence/analyzer.js";
 import type { EvidenceAnalyzer } from "./evidence/analyzer.js";
 import { InvalidEvidenceInput, parseEvidenceInput, readEvidenceBody } from "./evidence/request.js";
 
 export function createApp({ evidenceAnalyzer = analyzeEvidence, repository = new PaymentRepository(), principalResolver = createPrincipalResolver(), requestLogger }: {
-  evidenceAnalyzer?: EvidenceAnalyzer; repository?: PaymentRepository; principalResolver?: PrincipalResolver;
+  evidenceAnalyzer?: EvidenceAnalyzer; repository?: PaymentStore; principalResolver?: PrincipalResolver;
   requestLogger?: (record: Record<string, unknown>) => void;
 } = {}) {
   const app = express();
@@ -55,9 +56,9 @@ export function createApp({ evidenceAnalyzer = analyzeEvidence, repository = new
     if (actor(res).role !== "admin") { res.status(403).json({ code: "FORBIDDEN", message: "관리자 권한이 필요해요." }); return; }
     res.json(metrics);
   });
-  app.get("/api/payments", (_req, res) => res.json(repository.list(owner(res)).map(toPaymentView)));
-  app.get("/api/payments/:id", (req, res) => {
-    const payment = repository.get(req.params.id, owner(res));
+  app.get("/api/payments", async (_req, res) => { res.json((await repository.list(owner(res))).map(toPaymentView)); });
+  app.get("/api/payments/:id", async (req, res) => {
+    const payment = await repository.get(req.params.id, owner(res));
     if (!payment) { res.status(404).json({ code: "NOT_FOUND", message: "결제 건을 찾을 수 없어요." }); return; }
     res.json(toPaymentView(payment));
   });
@@ -65,7 +66,8 @@ export function createApp({ evidenceAnalyzer = analyzeEvidence, repository = new
     try {
       const result = await evidenceAnalyzer(await parseEvidenceInput(req));
       // AI 후보도 조회·연결과 같은 소유권 범위를 적용한다.
-      res.json({ ...result, candidatePaymentIds: result.candidatePaymentIds.filter(id => repository.get(id, owner(res))) });
+      const visible = await Promise.all(result.candidatePaymentIds.map(async id => (await repository.get(id, owner(res))) !== undefined));
+      res.json({ ...result, candidatePaymentIds: result.candidatePaymentIds.filter((_id, index) => visible[index]) });
     }
     catch (error) {
       if (error instanceof InvalidEvidenceInput) {
@@ -78,15 +80,15 @@ export function createApp({ evidenceAnalyzer = analyzeEvidence, repository = new
       res.status(501).json({ code: "AI_NOT_CONFIGURED", message: error.message });
     }
   });
-  app.post("/api/payments/:id/evidence", (req, res) => {
-    const result = repository.connectEvidence(req.params.id, req.body, req.get("Idempotency-Key"), {
+  app.post("/api/payments/:id/evidence", async (req, res) => {
+    const result = await repository.connectEvidence(req.params.id, req.body, req.get("Idempotency-Key"), {
       actorId: actor(res).id, ownerId: owner(res), requestId: res.locals.requestId,
     });
     res.set("Idempotency-Replayed", String(result.replayed)).status(201).json(result.body);
   });
-  app.post("/api/demo/reset", (_req, res) => {
+  app.post("/api/demo/reset", async (_req, res) => {
     if (actor(res).role !== "admin") { res.status(403).json({ code: "FORBIDDEN", message: "시연 초기화는 관리자만 실행할 수 있어요." }); return; }
-    repository.reset({ actorId: actor(res).id, requestId: res.locals.requestId }); res.json({ ok: true });
+    await repository.reset({ actorId: actor(res).id, requestId: res.locals.requestId }); res.json({ ok: true });
   });
   app.use("/api", (_req, res) => res.status(404).json({ code: "NOT_FOUND", message: "API 주소를 확인해 주세요." }));
   app.use(express.static(fileURLToPath(new URL("../../dist/web", import.meta.url))));
