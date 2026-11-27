@@ -62,7 +62,6 @@ export class DynamoPaymentRepository implements PaymentStore {
   close() { if (this.ownsClient) this.baseClient.destroy(); }
 
   private async seedIfEmpty() {
-    if (await this.getItem(stateKey)) return;
     const items: TransactItem[] = [{ Put: { TableName: this.tableName, Item: { ...stateKey, generation: 1 }, ConditionExpression: "attribute_not_exists(PK)" } }];
     createPaymentStore().forEach((p, index) => {
       items.push({ Put: { TableName: this.tableName, ConditionExpression: "attribute_not_exists(PK)", Item: {
@@ -71,10 +70,16 @@ export class DynamoPaymentRepository implements PaymentStore {
       } } });
     });
     items.push(...this.seedHistory(1));
-    try { await this.documentClient.send(new TransactWriteCommand({ TransactItems: items })); }
-    catch (error) {
-      // 다른 프로세스가 먼저 시드했다면 정상이다.
-      if (!(isCanceled(error) && await this.getItem(stateKey))) throw error;
+    for (let attempt = 1; ; attempt += 1) {
+      if (await this.getItem(stateKey)) return; // 이미 시드됨(다른 프로세스 포함)
+      try { await this.documentClient.send(new TransactWriteCommand({ TransactItems: items })); return; }
+      catch (error) {
+        // 실제 DynamoDB에서는 동시 시드가 TransactionConflict로 취소되고, 이긴 쪽이 아직 커밋 전일 수 있다.
+        // 잠시 기다린 뒤 다시 읽어 시드됐으면 끝내고, 아니면 다시 시도한다.
+        const reasons = cancellationCodes(error);
+        if (!reasons || !reasons.some(code => code === "ConditionalCheckFailed" || code === "TransactionConflict") || attempt >= maxAttempts) throw error;
+        await backoff(attempt);
+      }
     }
   }
 
