@@ -1,18 +1,15 @@
 import { DatabaseSync } from "node:sqlite";
-import { createHash, randomUUID } from "node:crypto";
-import type { Evidence, EvidenceFields, Payment, PaymentView, TimelineEvent } from "../../shared/types.js";
+import { randomUUID } from "node:crypto";
+import type { Evidence, Payment, TimelineEvent } from "../../shared/types.js";
 import { createPaymentStore } from "./store.js";
 import { toPaymentView } from "../status/paymentStatus.js";
+import { assertConnectable, assertOwnerSubject, assertValidKey, notFound, parseConfirmedEvidence, replayOrConflict,
+  type ConnectResult, type PaymentStore, type WriteContext } from "./contract.js";
 
-export class PaymentError extends Error {
-  constructor(public status: number, public code: string, message: string) { super(message); }
-}
-function fail(status: number, code: string, message: string): never { throw new PaymentError(status, code, message); }
-const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-export interface WriteContext { actorId: string; ownerId?: string; requestId?: string }
+export { PaymentError, type PaymentStore, type WriteContext } from "./contract.js";
 
 /** Single-host demo repository. All evidence writes, replay records and audit records commit together. */
-export class PaymentRepository {
+export class PaymentRepository implements PaymentStore {
   private readonly db: DatabaseSync;
   private inTransaction = false;
   constructor(path = ":memory:") {
@@ -82,14 +79,14 @@ export class PaymentRepository {
   private insertEvent(paymentId: string, e: TimelineEvent) {
     this.db.prepare("INSERT INTO events VALUES(?,?,?,?,?,?)").run(e.id, paymentId, e.kind, e.date, e.source, e.label);
   }
-  list(ownerId?: string): Payment[] {
+  async list(ownerId?: string): Promise<Payment[]> {
     return this.transaction(() => {
       const ids = ownerId === undefined ? this.db.prepare("SELECT id FROM payments ORDER BY rowid").all()
         : this.db.prepare("SELECT id FROM payments WHERE owner_id=? ORDER BY rowid").all(ownerId);
-      return (ids as { id: string }[]).map(p => this.get(p.id, ownerId)!);
+      return (ids as { id: string }[]).map(p => this.readPayment(p.id, ownerId)!);
     }, "DEFERRED");
   }
-  get(id: string, ownerId?: string): Payment | undefined {
+  async get(id: string, ownerId?: string): Promise<Payment | undefined> {
     return this.transaction(() => this.readPayment(id, ownerId), "DEFERRED");
   }
   private readPayment(id: string, ownerId?: string): Payment | undefined {
@@ -100,32 +97,16 @@ export class PaymentRepository {
     const events = this.db.prepare("SELECT id, kind, date, source, label FROM events WHERE payment_id=? ORDER BY rowid").all(id);
     return { ...row, evidence: evidence.map(e => ({ ...e })), events: events.map(e => ({ ...e })) } as unknown as Payment;
   }
-  connectEvidence(paymentId: string, raw: unknown, key?: string, context: WriteContext = { actorId: "system-test" }): { body: PaymentView; replayed: boolean } {
-    if (key !== undefined && !/^[A-Za-z0-9_-]{16,128}$/.test(key)) fail(400, "INVALID_IDEMPOTENCY_KEY", "요청 키는 영문·숫자·하이픈·밑줄 16~128자로 보내 주세요.");
+  async connectEvidence(paymentId: string, raw: unknown, key?: string, context: WriteContext = { actorId: "system-test" }): Promise<ConnectResult> {
+    assertValidKey(key);
     return this.transaction(() => {
-      const payment = this.get(paymentId, context.ownerId);
-      if (!payment) fail(404, "NOT_FOUND", "결제 건을 찾을 수 없어요.");
-      const b = raw as Partial<EvidenceFields> & { confirmed?: unknown } | null;
-      const validDate = typeof b?.cancelledOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.cancelledOn)
-        && !Number.isNaN(Date.parse(b.cancelledOn)) && new Date(b.cancelledOn).toISOString().slice(0, 10) === b.cancelledOn;
-      if (b?.confirmed !== true || typeof b.orderNumber !== "string" || !b.orderNumber.trim()
-        || !Number.isSafeInteger(b.amount) || b.amount! <= 0 || b.currency !== "KRW" || !validDate) {
-        fail(400, "INVALID_INPUT", "주문번호·금액·통화·유효한 취소일과 고객 확인이 필요해요.");
-      }
-      const fields: EvidenceFields = { orderNumber: b.orderNumber.trim(), amount: b.amount!, currency: "KRW", cancelledOn: b.cancelledOn! };
-      const fingerprint = hash(JSON.stringify({ paymentId, ...fields, confirmed: true }));
-      const keyHash = key ? hash(JSON.stringify([context.actorId, key])) : undefined;
+      const payment = this.readPayment(paymentId, context.ownerId) ?? notFound();
+      const { fields, fingerprint, keyHash } = parseConfirmedEvidence(paymentId, raw, key, context.actorId);
       if (keyHash) {
         const previous = this.db.prepare("SELECT fingerprint, response_json FROM idempotency WHERE key_hash=?").get(keyHash);
-        if (previous) {
-          if (previous.fingerprint !== fingerprint) fail(409, "IDEMPOTENCY_CONFLICT", "같은 요청 키에 다른 내용을 사용할 수 없어요.");
-          return { body: JSON.parse(String(previous.response_json)) as PaymentView, replayed: true };
-        }
+        if (previous) return replayOrConflict({ fingerprint: String(previous.fingerprint), responseJson: String(previous.response_json) }, fingerprint);
       }
-      if (fields.orderNumber !== payment.orderNumber || fields.amount !== payment.amount || fields.currency !== payment.currency || fields.cancelledOn < payment.paidOn) {
-        fail(409, "PAYMENT_MISMATCH", "선택한 결제의 주문번호·전액 금액·통화·결제일을 확인해 주세요.");
-      }
-      if (payment.evidence.some(e => e.cancelledOn === fields.cancelledOn)) fail(409, "DUPLICATE_EVIDENCE", "같은 취소일의 증빙이 이미 연결되어 있어요.");
+      assertConnectable(payment, fields);
       const id = randomUUID();
       const now = new Date().toISOString();
       const evidence: Evidence = { ...fields, id, source: "customer_confirmed", confirmedAt: now };
@@ -138,15 +119,15 @@ export class PaymentRepository {
       return { body, replayed: false };
     });
   }
-  assignUnclaimed(ownerId: string) {
-    if (!ownerId || ownerId === "unassigned") throw new Error("A verified customer subject is required");
+  async assignUnclaimed(ownerId: string): Promise<number> {
+    assertOwnerSubject(ownerId);
     return this.transaction(() => {
       const changed = this.db.prepare("UPDATE payments SET owner_id=? WHERE owner_id='unassigned'").run(ownerId).changes;
       if (Number(changed) > 0) this.db.prepare("INSERT INTO audit_log(action,actor_id,occurred_at) VALUES('ownership_assigned','operator-cli',?)").run(new Date().toISOString());
-      return changed;
+      return Number(changed);
     });
   }
-  reset(context: WriteContext = { actorId: "system-test" }) {
+  async reset(context: WriteContext = { actorId: "system-test" }): Promise<void> {
     this.transaction(() => {
       const owners = this.db.prepare("SELECT id,owner_id FROM payments").all();
       this.db.exec("DELETE FROM idempotency; DELETE FROM events; DELETE FROM evidence; DELETE FROM payments;");

@@ -155,6 +155,7 @@ npm test
 ## 관련 문서
 
 - [API 계약](docs/API.md) — 요청·응답 형식과 오류 처리
+- [DynamoDB 저장소](docs/DYNAMODB.md) — 저장소 선택·테이블 설계·로컬 계약 테스트
 - [금융권 백엔드 개선 사례](docs/BACKEND_PORTFOLIO.md) — 문제 재현·구현·실측·면접 설명
 - [CI와 CD](docs/CI_CD.md) — 자동 검증, 배포 아티팩트, OIDC 수동 배포
 - [AWS 수동 설정](docs/AWS_MANUAL_SETUP.md) — AWS에서 직접 진행할 순서

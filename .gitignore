@@ -8,3 +8,5 @@ dist/
 *.log
 .deploy/
 data/
+.dynamodb-local/
+dynamodb-local-metadata.json

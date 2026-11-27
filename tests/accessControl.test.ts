@@ -15,7 +15,7 @@ async function fixture(t: TestContext) {
   const dir = await mkdtemp(join(tmpdir(), "refund-access-"));
   const path = join(dir, "payments.sqlite");
   const repository = new PaymentRepository(path);
-  repository.assignUnclaimed(customerA);
+  await repository.assignUnclaimed(customerA);
   const db = new DatabaseSync(path);
   db.prepare("UPDATE payments SET owner_id=? WHERE id='PAY-003'").run(customerB);
   const logs: Record<string, unknown>[] = [];
@@ -60,14 +60,14 @@ test("미인증은 모든 업무 API에서 거부하고 고객은 자기 거래�
 
 test("타인 거래 조회·쓰기와 고객 초기화 시도 총 100회에서 데이터가 보존된다", async t => {
   const { call, repository } = await fixture(t);
-  const before = repository.list();
+  const before = await repository.list();
   const token = signedToken();
   const attempts = await Promise.all(Array.from({ length: 100 }, (_, i) => i % 3 === 0
     ? call("/api/payments/PAY-003", token)
     : i % 3 === 1 ? call("/api/payments/PAY-003/evidence", token, { ...evidence, orderNumber: "ORDER-003", amount: 18000, ownerId: customerA, role: "admin" })
       : call("/api/demo/reset", token, {})));
   assert.equal(attempts.filter(r => r.status === 404 || r.status === 403).length, 100);
-  assert.deepEqual(repository.list(), before);
+  assert.deepEqual(await repository.list(), before);
 });
 
 test("같은 멱등성 키를 다른 고객이 사용해도 응답이 섞이지 않고 감사 주체를 남긴다", async t => {
@@ -89,6 +89,6 @@ test("관리자만 초기화·운영 지표에 접근하고 초기화 후 소유
   assert.equal((await call("/api/admin/metrics", signedToken())).status, 403);
   const admin = signedToken({ "cognito:groups": [adminGroup] });
   assert.equal((await call("/api/demo/reset", admin, {})).status, 200);
-  assert.equal(repository.list(customerA).length, 2); assert.equal(repository.list(customerB).length, 1);
+  assert.equal((await repository.list(customerA)).length, 2); assert.equal((await repository.list(customerB)).length, 1);
   assert.equal((await call("/api/admin/metrics", admin)).status, 200);
 });
