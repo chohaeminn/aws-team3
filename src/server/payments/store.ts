@@ -1,6 +1,6 @@
 import type { Payment } from "../../shared/types.js";
 
-// ① 담당: 저장소 교체 지점. 현재는 재시작하면 초기화되는 메모리 저장소.
+// 합성 시드 fixture. 실제 저장과 트랜잭션은 PaymentRepository가 담당한다.
 export function createPaymentStore(): Payment[] {
   return [
     {

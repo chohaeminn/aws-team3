@@ -92,10 +92,10 @@ flowchart LR
 | 구분 | 현재 상태 |
 | --- | --- |
 | 화면·API | 결제 조회, 증빙 입력·수정·확인·연결, 타임라인, 상태 안내, 요약 복사, 시연 초기화 구현 |
-| AI 연동 | Gemini 텍스트·이미지 분석과 실패 시 재시도 구현. 실제 분석에는 API 키 필요 |
+| AI 연동 | Gemini·Bedrock 텍스트·이미지 분석과 실패 시 재시도 구현. 실제 분석에는 공급자별 인증 필요 |
 | 예시 데이터 | ‘합성 예시 불러오기’로 키 없이 흐름 확인 가능. AI 분석 결과와 구분 |
-| 저장 | 서버 메모리에 저장하며, 서버 재시작 또는 시연 초기화 시 초기 상태로 복원 |
-| 외부 연동 | 실제 카드사 연동, Bedrock 연동, AWS 배포 미완료 |
+| 저장 | SQLite 파일에 증빙·이벤트·멱등성 결과·감사 기록 저장. 서버 재시작 후 보존, 시연 초기화 시 합성 데이터로 복원 |
+| 외부 연동 | 실제 카드사 미연동. Bedrock 어댑터·AWS 배포 코드 준비, 실제 AWS 배포·호출 검증 대기 |
 
 API 키 설정 여부와 실제 AI 호출 성공 여부는 구분합니다. 실행 환경에서의 AI 호출·배포 검증 결과는 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에서 관리합니다.
 
@@ -103,7 +103,7 @@ API 키 설정 여부와 실제 AI 호출 성공 여부는 구분합니다. 실�
 
 ## 실행 방법
 
-Node.js **20.19 이상인 20.x 또는 22.12 이상**과 npm이 필요합니다.
+Node.js **22.18 이상인 22.x 또는 24 이상**과 npm이 필요합니다. Node.js 22의 실험적 내장 SQLite API를 사용합니다.
 
 ```sh
 npm ci
@@ -136,9 +136,9 @@ API 키 없이도 위 흐름을 확인할 수 있습니다. **AI 분석 버튼�
 | --- | --- | --- |
 | 프런트엔드 | React · TypeScript · Vite | [`src/web/`](src/web/) |
 | 서버 | Express · TypeScript | [`src/server/`](src/server/) |
-| 증빙 분석 | Gemini API 어댑터 | [`src/server/evidence/`](src/server/evidence/) |
+| 증빙 분석 | Gemini·Bedrock API 어댑터 | [`src/server/evidence/`](src/server/evidence/) |
 | 상태·문의자료 | 출처별 상태 계산과 문의용 요약 생성 | [`src/server/status/`](src/server/status/) |
-| 결제 저장 | 합성 데이터와 메모리 저장소 | [`src/server/payments/`](src/server/payments/) |
+| 결제 저장 | SQLite 트랜잭션·멱등성·감사 기록과 합성 데이터 | [`src/server/payments/`](src/server/payments/) |
 | 공유 계약 | 클라이언트·서버 공통 타입 | [`src/shared/types.ts`](src/shared/types.ts) |
 
 검증 명령:
@@ -152,6 +152,8 @@ npm test
 ## 관련 문서
 
 - [API 계약](docs/API.md) — 요청·응답 형식과 오류 처리
+- [금융권 백엔드 개선 사례](docs/BACKEND_PORTFOLIO.md) — 문제 재현·구현·실측·면접 설명
+- [AWS 배포·Bedrock 연결](docs/AWS_DEPLOYMENT.md) — 새 계정 인증·배포·팀 접속·삭제 절차
 - [시연 체크리스트](docs/DEMO_CHECKLIST.md) — 실제 호출과 시연 검증
 - [협업 가이드](CONTRIBUTING.md) — 브랜치·커밋·리뷰 규칙
 - [팀 온보딩](docs/TEAM_ONBOARDING.md) — 팀원 작업 시작 안내

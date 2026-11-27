@@ -59,6 +59,7 @@ export function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [aiConnected, setAiConnected] = useState(false);
   const capturesRef = useRef<Capture[]>([]);
+  const pendingSubmission = useRef<{ signature: string; key: string } | null>(null);
   const trackRef = useRef<HTMLUListElement>(null);
   const [zoomId, setZoomId] = useState("");
   const zoomed = captures.find(c => c.id === zoomId);
@@ -131,7 +132,7 @@ export function App() {
     <div className="app-bar"><a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-caption">결제 취소·환불 추적</span></a><span className="demo-badge">합성 데이터 · 시연 버전</span></div>
     <main id="workspace">
     <header className="page-header"><h1>내 결제의 취소 진행 상황</h1><p>결제를 선택하면 현재 상태와 다음에 할 일을 확인할 수 있어요.</p></header>
-    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. {aiConnected ? "AI 키 설정됨 · 분석 요청 후 결과를 확인해 주세요. 결과는 고객이 확인한 뒤에만 결제에 연결돼요." : "AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요."}</span></div>
+    <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. {aiConnected ? "AI 설정됨 · 분석 요청 후 결과를 확인해 주세요. 결과는 고객이 확인한 뒤에만 결제에 연결돼요." : "AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요."}</span></div>
     <div className="workspace-layout"><aside className="payment-panel"><div className="list-heading"><h2>결제 내역</h2><span>{payments.length}건</span></div>
     {!loaded && <div className="empty-state" role="status">결제 내역을 불러오고 있어요…</div>}
     {loaded && payments.length === 0 && <div className="empty-state">{message ? "결제 내역을 불러오지 못했어요. 잠시 후 페이지를 새로고침해 주세요." : "등록된 결제 내역이 없어요."}</div>}
@@ -181,7 +182,11 @@ export function App() {
       <p className="hint">직접 입력하거나 예시를 불러와 수정할 수 있어요. 캡처 이미지는 AI 분석 요청 시 함께 전송됩니다.</p>
       <div className="form-divider"><h3>추출 정보 확인</h3><span>직접 수정할 수 있어요</span></div>
       <form onSubmit={e => { e.preventDefault(); void run(async () => {
-        const updated = await request<PaymentView>(`/api/payments/${selectedId}/evidence`, { ...fields, confirmed });
+        const body = { ...fields, confirmed };
+        const signature = JSON.stringify({ selectedId, ...body });
+        if (pendingSubmission.current?.signature !== signature) pendingSubmission.current = { signature, key: crypto.randomUUID() };
+        const updated = await request<PaymentView>(`/api/payments/${selectedId}/evidence`, body, { "Idempotency-Key": pendingSubmission.current.key });
+        pendingSubmission.current = null;
         setPayments(old => old.map(p => p.id === updated.id ? updated : p)); setActiveTab("status"); setConfirmed(false); setNotice("확인한 증빙을 결제에 연결했어요.");
       }); }}>
         <fieldset disabled={busy}>
@@ -200,7 +205,7 @@ export function App() {
       <button type="button" className="lightbox-close" autoFocus onClick={() => setZoomId("")} aria-label="닫기">✕</button>
       <img src={zoomed.url} alt={`${zoomed.file.name} 원본 보기`} onClick={e => e.stopPropagation()} />
     </div>}
-    <footer><span>메모리 저장 · 서버 재시작 시 초기화됩니다.</span><button disabled={busy} onClick={() => {
+    <footer><span>시연 초기화는 저장된 증빙을 초기 상태로 되돌립니다.</span><button disabled={busy} onClick={() => {
       if (!window.confirm("모든 시연 데이터를 초기 상태로 되돌릴까요?")) return;
       void run(async () => { await request("/api/demo/reset", {}); setPayments(await request<PaymentView[]>("/api/payments")); select("PAY-001"); setNotice("시연 데이터를 초기화했어요."); });
     }}>시연 초기화</button></footer>
