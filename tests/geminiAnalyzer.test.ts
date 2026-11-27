@@ -1,3 +1,4 @@
+import { testPrincipal } from "./fixtures/principal.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AnalysisFailed, AnalysisUnavailable, analyzeEvidence, createGeminiAnalyzer, defaultGeminiModel, geminiEndpoint, thinkingConfigFromEnv } from "../src/server/evidence/analyzer.js";
@@ -56,7 +57,7 @@ test("HTTP 오류·네트워크 오류·잘못된 응답은 AnalysisFailed이며
 test("키가 없으면 AnalysisUnavailable, 키가 있으면 /api/health가 aiConnected를 반영한다", async t => {
   const saved = process.env.GEMINI_API_KEY;
   t.after(() => { if (saved === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = saved; });
-  const server = createApp().listen(0, "127.0.0.1");
+  const server = createApp({ principalResolver: testPrincipal }).listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   const health = () => fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/health`).then(r => r.json());

@@ -20,10 +20,12 @@ export const geminiEndpoint = (model: string) => `https://generativelanguage.goo
 const requestTimeoutMs = 30_000;
 
 export function isAiConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.AI_PROVIDER === "bedrock") return Boolean(env.AWS_REGION?.trim() && env.BEDROCK_MODEL_ID?.trim());
+  if (env.AI_PROVIDER && env.AI_PROVIDER !== "gemini") return false;
   return Boolean(env.GEMINI_API_KEY?.trim());
 }
 
-const instruction = [
+export const instruction = [
   "너는 결제 취소 증빙(취소 메일 텍스트, 영수증·취소 안내 캡처)에서 항목을 추출하는 도우미다.",
   "주문번호(orderNumber), 취소 금액 정수(amount), 통화(currency), 취소일 YYYY-MM-DD(cancelledOn) 4개 필드를 모두 추출하라.",
   "항상 4개 키를 모두 가진 JSON 객체 하나만 반환하며, 키를 빠뜨리거나 첫 번째 키만 출력하고 끝내지 않는다.",
@@ -149,6 +151,14 @@ export function createGeminiAnalyzer({ apiKey, model = defaultGeminiModel, fetch
 }
 
 export async function analyzeEvidence(input: EvidenceAnalysisInput): Promise<AnalysisResult> {
+  if (process.env.AI_PROVIDER === "bedrock") {
+    if (!isAiConfigured()) throw new AnalysisUnavailable("서버의 AWS_REGION과 BEDROCK_MODEL_ID 설정이 필요해요.");
+    const { createBedrockAnalyzer } = await import("./bedrock.js");
+    return createBedrockAnalyzer()(input);
+  }
+  if (process.env.AI_PROVIDER && process.env.AI_PROVIDER !== "gemini") {
+    throw new AnalysisUnavailable("지원하지 않는 AI_PROVIDER 설정이에요.");
+  }
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
     throw new AnalysisUnavailable("AI 분석은 아직 연결되지 않았어요. 예시를 불러오거나 직접 입력해 고객 확인 흐름을 시연할 수 있어요.");

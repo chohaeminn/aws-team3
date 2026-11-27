@@ -1,3 +1,4 @@
+import { testPrincipal } from "./fixtures/principal.js";
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
@@ -8,7 +9,7 @@ import { toPaymentView } from "../src/server/status/paymentStatus.js";
 import type { PaymentView } from "../src/shared/types.js";
 
 async function startTestServer(t: TestContext) {
-  const server = createApp().listen(0, "127.0.0.1");
+  const server = createApp({ principalResolver: testPrincipal }).listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

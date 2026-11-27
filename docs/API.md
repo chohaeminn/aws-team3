@@ -10,13 +10,13 @@
 - 거래·취소 날짜: `YYYY-MM-DD`, 확인 시각: UTC ISO 8601
 - 상태값: `confirmed` / `unconfirmed`, 가맹점과 카드 각각 계산
 - 오류: `{ "code": "오류코드", "message": "한국어 안내" }`
-- 모든 데이터는 합성 데이터. 저장은 프로세스 메모리이며 서버 재시작 시 초기화
+- 모든 데이터는 합성 데이터. 서버 실행은 SQLite 파일 저장이며 동일 파일로 재시작하면 보존
 
 ## 엔드포인트
 
 | 메서드 | 경로 | 결과 |
 | --- | --- | --- |
-| GET | `/api/health` | 서버 상태, 합성 데이터, `GEMINI_API_KEY` 설정 여부(`aiConnected`) |
+| GET | `/api/health` | 서버 상태, 합성 데이터, AI 공급자 설정 여부(`aiConnected`) |
 | GET | `/api/payments` | `PaymentView[]` |
 | GET | `/api/payments/:id` | `PaymentView` |
 | POST | `/api/evidence/analyze` | `200 AnalysisResult`, 키 미설정 시 `501 AI_NOT_CONFIGURED`, 외부 AI 호출 실패 시 `502 AI_ANALYSIS_FAILED` |
@@ -69,6 +69,20 @@ PAY-002에는 11월 14일 결제, 15일 요청, 16일 가맹점 확인, 18일 �
 
 위 JSON은 `PaymentView`의 상태 관련 필드만 발췌한 예시입니다. 전체 필드는 공유 타입을 확인합니다. 고객 확인은 데이터 연결에 대한 확인이며 증빙 진위의 자동 검증을 뜻하지 않습니다.
 
+## 증빙 연결의 멱등성
+
+업무 API는 `Authorization: Bearer <Cognito access token>`이 필요합니다. 공개 API는 `/api/health`와 `/api/auth/config`입니다. `/api/auth/me`는 인증 주체·역할을 반환하고 `/api/admin/metrics`는 관리자에게 프로세스 수명 동안의 요청·인증 거부·서버 오류·멱등성 재현 횟수를 반환합니다.
+
+서명·발급자·클라이언트·만료·access token 용도를 확인하지 못하면 `401 UNAUTHENTICATED`입니다. 일반 고객은 자기 소유의 목록·상세·증빙 연결·AI 후보만 접근합니다. 타인 거래와 없는 거래는 모두 404이며 `/api/demo/reset`과 운영 지표는 관리자가 아니면 403입니다. 관리자 그룹 이름은 `refund-demo-admin`입니다. 소유자는 검증한 토큰의 sub에서 결정하며 본문으로 변경할 수 없습니다.
+
+각 응답의 `X-Request-Id`는 서버가 생성합니다. 증빙 연결 감사 기록에는 요청 ID와 인증 주체가 포함됩니다. 운영 요청 로그에는 경로 템플릿·상태·소요 시간만 기록하며 URL 쿼리·본문·Authorization은 기록하지 않습니다. 업무 API는 `Cache-Control: no-store`입니다.
+
+증빙 연결 요청은 선택적으로 `Idempotency-Key` 헤더를 받습니다. 영문·숫자·`-`·`_`로 구성한 16~128자 키를 사용합니다. 화면은 UUID를 전송하고 같은 입력의 실패 후 재시도에서 키를 재사용합니다.
+
+같은 키·정규화한 본문·결제 ID는 최초 201 응답 본문을 그대로 재현하고 `Idempotency-Replayed: true`를 반환합니다. 최초 응답에는 `false`가 들어갑니다. 재현된 응답은 최초 시점의 스냅샷이며 최신 상태 조회는 GET API를 사용합니다. 같은 키에 다른 유효 본문·결제 ID는 `409 IDEMPOTENCY_CONFLICT`, 잘못된 키는 `400 INVALID_IDEMPOTENCY_KEY`입니다. 키가 없으면 기존 날짜 중복 검사와 409 계약을 유지합니다.
+
+증빙·타임라인·감사 기록·멱등성 결과는 SQLite 트랜잭션 하나로 저장합니다. `npm start`는 `PAYMENT_DB_PATH`(기본 `data/payments.sqlite`) 파일을 사용하고, `createApp()`은 테스트 격리를 위한 메모리 SQLite를 기본으로 사용합니다. 키는 인증 주체별로 분리합니다. 시연 초기화는 증빙·멱등성 결과를 초기화하되 고객 소유권과 기존 감사 기록을 보존하고 초기화 이벤트를 추가합니다. 초기화는 관리자만 실행합니다.
+
 ## AI 분석 연결 계약
 
 | Content-Type | 요청 본문 |
@@ -76,7 +90,7 @@ PAY-002에는 11월 14일 결제, 15일 요청, 16일 가맹점 확인, 18일 �
 | `application/json` | `{ "text": "합성 취소 메일 텍스트" }`. 공백 이외의 텍스트가 필요합니다. |
 | `multipart/form-data` | `text` 필드 한 개와 반복되는 `images` 파일 필드. 텍스트와 이미지 중 하나 이상이 필요합니다. 텍스트는 최대 100 KiB, 이미지는 PNG·JPEG MIME 유형만 최대 4장, 장당 3 MiB까지 받습니다. |
 
-빈 입력과 잘못된 필드는 `400 INVALID_INPUT`입니다. 본문 크기 제한을 넘으면 `413 INVALID_INPUT`입니다. 유효한 요청에 대해 `GEMINI_API_KEY`가 없으면 `501 AI_NOT_CONFIGURED`를 반환합니다. 외부 AI(Gemini) 호출이 실패하면(연결 오류, 사용량 한도, 요청 거절, 해석할 수 없는 응답) `502 AI_ANALYSIS_FAILED`를 반환하며, 메시지에는 API 키와 외부 응답 본문을 담지 않습니다(상태 코드는 서버 콘솔에만 기록). 화면은 이 응답에 재시도를 안내합니다. 그 밖의 예상하지 못한 분석 실패는 `500 INTERNAL_ERROR`입니다. 오류 본문은 공통 `{ code, message }` 형식을 사용합니다.
+빈 입력과 잘못된 필드는 `400 INVALID_INPUT`입니다. 본문 크기 제한을 넘으면 `413 INVALID_INPUT`입니다. 선택한 공급자의 설정이 없으면 `501 AI_NOT_CONFIGURED`를 반환합니다. Gemini는 `GEMINI_API_KEY`, Bedrock은 `AI_PROVIDER=bedrock`과 `AWS_REGION`·`BEDROCK_MODEL_ID`를 사용합니다. 외부 AI 호출이 실패하면 `502 AI_ANALYSIS_FAILED`를 반환하며 메시지에는 API 키와 외부 응답 본문을 담지 않습니다. 화면은 재시도를 안내합니다. 그 밖의 예상하지 못한 분석 실패는 `500 INTERNAL_ERROR`입니다. 오류 본문은 공통 `{ code, message }` 형식입니다.
 
 ② 담당이 `src/server/evidence/analyzer.ts`를 구현합니다. 반환 타입은 다음과 같습니다.
 
@@ -87,7 +101,7 @@ interface AnalysisResult {
   provider: "bedrock" | "gemini";
 }
 ```
-현재 서버는 `GEMINI_API_KEY`가 설정되면 Gemini(`provider: "gemini"`)를 호출합니다. 모델은 `GEMINI_MODEL`로 바꿀 수 있고 기본값은 `gemini-3.5-flash-lite`입니다. `/api/health`의 `aiConnected`는 `GEMINI_API_KEY` 환경 변수가 설정되어 있는지만 나타냅니다. 실제 외부 API 호출 성공이나 키·모델의 유효성은 보장하지 않으며, 호출이 실패하면 분석 요청이 `502 AI_ANALYSIS_FAILED`를 반환합니다. `candidatePaymentIds`는 추출한 주문번호·금액·통화가 모두 일치하는 결제 ID입니다. 응답 예시는 다음과 같습니다.
+기본 공급자는 Gemini(`provider: "gemini"`)이고 `GEMINI_MODEL`로 모델을 바꿀 수 있습니다. 기본 모델은 `gemini-3.5-flash-lite`입니다. `AI_PROVIDER=bedrock`이면 AWS 기본 인증 체인으로 Bedrock을 호출합니다. `/api/health`의 `aiConnected`는 공급자 설정 존재 여부이며 실제 인증·모델 호출 성공을 보장하지 않습니다. `candidatePaymentIds`는 추출한 주문번호·금액·통화가 모두 일치하는 결제 ID입니다. 응답 예시는 다음과 같습니다.
 ```json
 {
   "fields": { "orderNumber": "ORDER-001", "amount": 50000, "currency": "KRW", "cancelledOn": "2026-11-19" },
@@ -133,6 +147,6 @@ interface AnalysisResult {
 
 ## 시연 범위
 
-`/api/health`의 `aiConnected`는 키 설정 여부만 나타냅니다. 키 유효성, 모델 접근 권한이나 실제 분석 성공을 보장하지 않습니다. 실제 성공 여부는 분석 요청 결과로 확인합니다.
+`/api/health`의 `aiConnected`는 공급자 설정 존재 여부만 나타냅니다. 인증, 모델 접근 권한이나 실제 분석 성공을 보장하지 않습니다. 실제 성공 여부는 분석 요청 결과로 확인합니다.
 
-로컬 서버는 기본 `127.0.0.1`에 바인딩합니다. `HOST`와 `PORT`로 변경할 수 있습니다. 인증·영속 저장·실제 카드사 연동은 없습니다. 공유 배포 전 인증, 데이터 격리, 초기화 API 접근 제어를 구현해야 합니다. 배포 준비와 검증은 [시연 체크리스트](DEMO_CHECKLIST.md)를 따릅니다.
+로컬 서버는 기본 `127.0.0.1`에 바인딩합니다. `HOST`와 `PORT`로 변경할 수 있습니다. Cognito 인증·고객별 거래 격리·관리자 초기화를 지원하고 실제 카드사 연동은 없습니다. AWS 시연은 SSM으로 접근을 제한합니다. 로그인 화면의 OAuth callback은 localhost:3000을 사용합니다. 외부 공개 운영은 HTTPS·운영 인증 정책·백업 복구 등을 추가 검증해야 합니다. [수동 설정](AWS_MANUAL_SETUP.md)과 [시연 체크리스트](DEMO_CHECKLIST.md)를 따릅니다.

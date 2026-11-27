@@ -1,3 +1,4 @@
+import { testPrincipal } from "./fixtures/principal.js";
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
@@ -9,7 +10,7 @@ import type { AnalysisResult, PaymentView } from "../src/shared/types.js";
 import { createMockEvidenceAnalyzer } from "./fixtures/mockEvidenceAnalyzer.js";
 
 async function startApp(t: TestContext, evidenceAnalyzer?: EvidenceAnalyzer) {
-  const server = createApp({ evidenceAnalyzer }).listen(0, "127.0.0.1");
+  const server = createApp({ evidenceAnalyzer, principalResolver: testPrincipal }).listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
