@@ -1,0 +1,40 @@
+{
+  "mode": "after",
+  "measuredAt": "2026-11-27T05:02:31.564Z",
+  "node": "v22.18.0",
+  "baselineRevision": "25ccbb3fdb8a722108fda155b02482e8641a9504",
+  "authentication": "RS256 signatures verified against synthetic local JWKS; no live Cognito request",
+  "synthetic": true,
+  "transport": "HTTP loopback",
+  "cases": [
+    {
+      "name": "unauthenticated-list",
+      "attempts": 25,
+      "denied": 25,
+      "expectedStatus": 401
+    },
+    {
+      "name": "other-customer-read",
+      "attempts": 25,
+      "denied": 25,
+      "expectedStatus": 404
+    },
+    {
+      "name": "other-customer-write",
+      "attempts": 25,
+      "denied": 25,
+      "expectedStatus": 404
+    },
+    {
+      "name": "customer-admin-reset",
+      "attempts": 25,
+      "denied": 25,
+      "expectedStatus": 403
+    }
+  ],
+  "totals": {
+    "attempts": 100,
+    "denied": 100,
+    "deniedPercent": 100
+  }
+}

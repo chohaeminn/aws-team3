@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import type { AnalysisResult, EvidenceFields, PaymentView } from "../shared/types";
 import { request } from "./api";
+import { authenticatedFetch, beginLogin, hasSession, initializeLogin, logout } from "./auth";
 
 const emptyFields: EvidenceFields = { orderNumber: "", amount: 0, currency: "KRW", cancelledOn: "" };
 function Icon({ name, size = 20 }: { name: "grid" | "file" | "shield" | "upload" | "spark" | "copy"; size?: number }) {
@@ -17,7 +18,7 @@ async function analyzeWithFormData(text: string, images: File[]): Promise<Analys
   formData.append("text", text);
   for (const file of images) formData.append("images", file);
   // Content-Type은 지정하지 않아 브라우저가 multipart boundary를 자동 설정한다.
-  const response = await fetch("/api/evidence/analyze", { method: "POST", body: formData });
+  const response = await authenticatedFetch("/api/evidence/analyze", { method: "POST", body: formData });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = data.message ?? "요청에 실패했어요.";
@@ -41,6 +42,22 @@ function toFormFields(raw: unknown): EvidenceFields {
 }
 function formatSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`; }
 export function App() {
+  const [principal, setPrincipal] = useState<{ id: string; role: string }>();
+  const [checking, setChecking] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const expired = () => { setPrincipal(undefined); setError("로그인 시간이 만료됐어요. 다시 로그인해 주세요."); };
+    window.addEventListener("refund-session-expired", expired);
+    void initializeLogin().then(async () => {
+      if (hasSession()) setPrincipal(await request("/api/auth/me"));
+    }).catch(e => setError(e instanceof Error ? e.message : "로그인을 확인하지 못했어요.")).finally(() => setChecking(false));
+    return () => window.removeEventListener("refund-session-expired", expired);
+  }, []);
+  if (checking) return <main className="login-panel" role="status">로그인 상태를 확인하고 있어요…</main>;
+  if (!principal) return <main className="login-panel"><span className="eyebrow">reflo · 합성 데이터 시연</span><h1>내 결제의 취소 진행 상황</h1><p>로그인한 계정의 결제와 취소 증빙을 확인할 수 있어요.</p>{error && <p role="alert">{error}</p>}<button onClick={() => { void beginLogin().catch(e => setError(e.message)); }}>로그인</button></main>;
+  return <RefundWorkspace principal={principal} />;
+}
+function RefundWorkspace({ principal }: { principal: { id: string; role: string } }) {
   const [payments, setPayments] = useState<PaymentView[]>([]);
   const [activeTab, setActiveTab] = useState<"status" | "evidence" | "inquiry">("status");
   const [loaded, setLoaded] = useState(false);
@@ -129,7 +146,7 @@ export function App() {
   }
   return <div className="app-shell">
     <a className="skip-link" href="#workspace">본문으로 건너뛰기</a>
-    <div className="app-bar"><a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-caption">결제 취소·환불 추적</span></a><span className="demo-badge">합성 데이터 · 시연 버전</span></div>
+    <div className="app-bar"><a className="brand" href="#workspace"><span className="brand-mark">r</span>reflo<span className="brand-caption">결제 취소·환불 추적</span></a><button onClick={() => { void logout().catch(() => window.location.reload()); }}>로그아웃</button></div>
     <main id="workspace">
     <header className="page-header"><h1>내 결제의 취소 진행 상황</h1><p>결제를 선택하면 현재 상태와 다음에 할 일을 확인할 수 있어요.</p></header>
     <div className="demo-banner"><Icon name="shield" size={18} /><span>실제 결제·카드사에 연결되지 않은 시연입니다. {aiConnected ? "AI 설정됨 · 분석 요청 후 결과를 확인해 주세요. 결과는 고객이 확인한 뒤에만 결제에 연결돼요." : "AI 분석은 준비 중이며, 직접 입력하거나 합성 예시를 사용할 수 있어요."}</span></div>
@@ -205,9 +222,9 @@ export function App() {
       <button type="button" className="lightbox-close" autoFocus onClick={() => setZoomId("")} aria-label="닫기">✕</button>
       <img src={zoomed.url} alt={`${zoomed.file.name} 원본 보기`} onClick={e => e.stopPropagation()} />
     </div>}
-    <footer><span>시연 초기화는 저장된 증빙을 초기 상태로 되돌립니다.</span><button disabled={busy} onClick={() => {
+    <footer><span>합성 데이터 · 실제 결제와 연결되지 않습니다.</span>{principal.role === "admin" && <button disabled={busy} onClick={() => {
       if (!window.confirm("모든 시연 데이터를 초기 상태로 되돌릴까요?")) return;
       void run(async () => { await request("/api/demo/reset", {}); setPayments(await request<PaymentView[]>("/api/payments")); select("PAY-001"); setNotice("시연 데이터를 초기화했어요."); });
-    }}>시연 초기화</button></footer>
+    }}>시연 초기화</button>}</footer>
   </main></div>;
 }

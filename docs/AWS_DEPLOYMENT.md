@@ -1,5 +1,7 @@
 # AWS 배포 및 Bedrock 연결
 
+Cognito 인증과 GitHub Actions를 추가한 최신 수동 진행 순서는 [AWS 수동 설정](AWS_MANUAL_SETUP.md)과 [CI/CD 안내](CI_CD.md)를 따릅니다. 업무 API는 인증이 없으면 차단되며 합성 거래는 운영자가 고객에게 배정해야 합니다.
+
 대상 계정은 `727847798739` (`squarenetedu003`), 리전은 서울 `ap-northeast-2`입니다. 이메일·정규 사용자 ID는 인증 수단이 아닙니다. AWS 자격 증명은 저장소나 채팅에 넣지 않습니다.
 
 ## 준비된 구성과 아직 필요한 검증

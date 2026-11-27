@@ -1,3 +1,4 @@
+import { testPrincipal } from "./fixtures/principal.js";
 import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
@@ -90,7 +91,7 @@ test("4개 독립 프로세스에서 같은 파일에 100회 요청해도 한 �
 
 test("HTTP는 재전송 표시·잘못된 키·내용 충돌을 구분한다", async t => {
   const { repository } = await fixture(t);
-  const server = createApp({ repository }).listen(0, "127.0.0.1");
+  const server = createApp({ repository, principalResolver: testPrincipal }).listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => new Promise<void>(done => server.close(() => done())));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;

@@ -14,6 +14,12 @@ const work = await mkdtemp(resolve(".qa/reliability-"));
 const dbPath = resolve(work, "payments.sqlite");
 const baselineRevision = "544704609a76595b9cef262da0912cb72b9781ff";
 let entryArgs = ["--import", "tsx", "src/server/index.ts"];
+if (label === "after") {
+  const appUrl = pathToFileURL(resolve("src/server/app.ts")).href;
+  const repoUrl = pathToFileURL(resolve("src/server/payments/repository.ts")).href;
+  const fixtureUrl = pathToFileURL(resolve("tests/fixtures/principal.ts")).href;
+  entryArgs = ["--import", "tsx", "--input-type=module", "-e", `import {createApp} from ${JSON.stringify(appUrl)}; import {PaymentRepository} from ${JSON.stringify(repoUrl)}; import {testPrincipal} from ${JSON.stringify(fixtureUrl)}; const repository=new PaymentRepository(process.env.PAYMENT_DB_PATH); createApp({repository,principalResolver:testPrincipal}).listen(Number(process.env.PORT),'127.0.0.1');`];
+}
 if (label === "before") {
   // Keep the original HTTP handler reproducible without reverting the working tree.
   const original = execFileSync("git", ["show", `${baselineRevision}:src/server/app.ts`], { encoding: "utf8" });

@@ -53,5 +53,6 @@ npm start
 | 작성 필요 | 작성 필요 | 작성 필요 | 작성 필요 | 작성 필요 | 미실행 |
 | 로컬 미커밋 변경 | 2026-11-27 (KST) | Windows / Node.js 22.18.0 | typecheck·build·테스트 52건, YAML 파싱·PowerShell 구문 | 로컬 / Bedrock 모의 응답 | 통과. AWS 템플릿 서비스 검증·배포·실제 Bedrock 호출·팀원 접속은 미실행 |
 | 로컬 미커밋 변경 | 2026-11-27 (KST) | Windows / Node.js 22.18.0 / SQLite | typecheck·build·테스트 60건, HTTP 재전송·실제 프로세스 재시작, 프로세스 4개 동시 쓰기, 3단계 오류 주입 | 로컬 실측 / 합성 데이터 | 통과. [전후 측정과 범위](BACKEND_PORTFOLIO.md). AWS 실제 배포·호출은 미실행 |
+| 보안 및 CI 추가 변경 | 2026-11-27 (KST) | Windows / Node.js 22.18.0 / 로컬 RSA 서명 | 타입 검사·빌드·테스트 67건, 권한 경계 HTTP 100회, CloudFormation lint, 셸 구문 검사 | 로컬 실측 / 합성 키·사용자 | 통과. 실제 Cognito 로그인·CD·Bedrock 호출은 AWS 설정 후 확인 |
 
 직접 입력과 AI 추출 확인의 시간을 같은 합성 증빙으로 각각 측정하고, 최종 주문번호·금액·통화·취소일 4개 값의 정답 일치 개수도 기록합니다. 측정 전 성과 수치를 기입하지 않습니다.

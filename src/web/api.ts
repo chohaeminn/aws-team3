@@ -1,5 +1,6 @@
+import { authenticatedFetch } from "./auth";
 export async function request<T>(path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
-  const response = await fetch(path, body === undefined ? undefined : {
+  const response = await authenticatedFetch(path, body === undefined ? undefined : {
     method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body),
   });
   const data = await response.json();

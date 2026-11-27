@@ -21,19 +21,23 @@ Write-Host "Verified target account $($identity.Account), region $Region"
 Invoke-Aws @('cloudformation', 'validate-template', '--template-body', 'file://infra/demo.yaml') | Out-Null
 if ($CheckOnly) { return }
 foreach ($task in @('typecheck', 'build', 'test')) {
-  & npm.cmd run $task
+  $npmCommand = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'npm.cmd' } else { 'npm' }
+  & $npmCommand run $task
   if ($LASTEXITCODE -ne 0) { throw "npm run $task failed" }
 }
 $artifactDir = Join-Path $repo '.deploy'
 New-Item -ItemType Directory -Force $artifactDir | Out-Null
 $archive = Join-Path $artifactDir 'refund-tracker.tgz'
-& tar -czf $archive src dist/web package.json package-lock.json infra/install.sh
+& tar -czf $archive src dist/web package.json package-lock.json infra/install.sh scripts/assign-demo-owner.ts
 if ($LASTEXITCODE -ne 0) { throw 'Artifact creation failed' }
 Invoke-Aws @('cloudformation', 'deploy', '--template-file', 'infra/demo.yaml', '--stack-name', $Stack, '--capabilities', 'CAPABILITY_IAM', '--no-fail-on-empty-changeset') | Out-Host
 $description = Invoke-Aws @('cloudformation', 'describe-stacks', '--stack-name', $Stack, '--output', 'json') | ConvertFrom-Json
 $outputs = $description.Stacks[0].Outputs
 $bucket = ($outputs | Where-Object OutputKey -eq 'ArtifactBucket').OutputValue
 $instance = ($outputs | Where-Object OutputKey -eq 'InstanceId').OutputValue
+$pool = ($outputs | Where-Object OutputKey -eq 'CognitoUserPoolId').OutputValue
+$client = ($outputs | Where-Object OutputKey -eq 'CognitoClientId').OutputValue
+$domain = ($outputs | Where-Object OutputKey -eq 'CognitoDomain').OutputValue
 $key = 'releases/' + [guid]::NewGuid().ToString() + '.tgz'
 Invoke-Aws @('s3', 'cp', $archive, "s3://$bucket/$key") | Out-Host
 $online = $false
@@ -47,7 +51,7 @@ $commands = @(
   'set -eu',
   "aws s3 cp s3://$bucket/$key /tmp/refund-tracker.tgz --region $Region",
   'tar -xzf /tmp/refund-tracker.tgz -C /tmp infra/install.sh',
-  "bash /tmp/infra/install.sh s3://$bucket/$key $Region"
+  "bash /tmp/infra/install.sh s3://$bucket/$key $Region $pool $client $domain"
 )
 $parameters = Join-Path $artifactDir 'ssm-parameters.json'
 [IO.File]::WriteAllText($parameters, (@{commands=$commands; executionTimeout=@('1200')} | ConvertTo-Json), [Text.UTF8Encoding]::new($false))

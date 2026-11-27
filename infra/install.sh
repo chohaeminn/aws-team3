@@ -2,6 +2,12 @@
 set -euo pipefail
 artifact_uri="$1"
 region="$2"
+pool_id="${3:?Cognito user pool ID required}"
+client_id="${4:?Cognito client ID required}"
+domain="${5:?Cognito domain required}"
+[[ "$pool_id" =~ ^ap-northeast-2_[a-zA-Z0-9]+$ ]]
+[[ "$client_id" =~ ^[a-zA-Z0-9]+$ ]]
+[[ "$domain" =~ ^[a-z0-9-]+\.auth\.ap-northeast-2\.amazoncognito\.com$ ]]
 dnf install -y nodejs22 nodejs22-npm
 id refund-tracker &>/dev/null || useradd --system --home-dir /opt/refund-tracker refund-tracker
 install -d -o refund-tracker -g refund-tracker /opt/refund-tracker
@@ -24,6 +30,9 @@ AWS_REGION=$region
 BEDROCK_MODEL_ID=apac.amazon.nova-lite-v1:0
 NODE_ENV=production
 PAYMENT_DB_PATH=/var/lib/refund-tracker/payments.sqlite
+COGNITO_USER_POOL_ID=$pool_id
+COGNITO_CLIENT_ID=$client_id
+COGNITO_DOMAIN=$domain
 EOF
 cat >/etc/systemd/system/refund-tracker.service <<'EOF'
 [Unit]

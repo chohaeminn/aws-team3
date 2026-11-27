@@ -10,7 +10,7 @@ test("Bedrock 텍스트·이미지 요청과 결제 후보를 연결한다", asy
     assert.equal(command.input.messages?.[0].content?.[0].text, "취소 안내");
     assert.deepEqual(command.input.messages?.[0].content?.[1].image, { format: "png", source: { bytes } });
     assert.ok(options.abortSignal instanceof AbortSignal);
-    return { $metadata: {}, stopReason: "end_turn", output: { message: { role: "assistant", content: [{ text: '```json\n{"orderNumber":"ORDER-001","amount":50000,"currency":"KRW","cancelledOn":"2026-11-19"}\n```' }] } } };
+    return { $metadata: {}, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, metrics: { latencyMs: 1 }, stopReason: "end_turn", output: { message: { role: "assistant", content: [{ text: '```json\n{"orderNumber":"ORDER-001","amount":50000,"currency":"KRW","cancelledOn":"2026-11-19"}\n```' }] } } };
   } });
   assert.deepEqual(await analyze({ text: "취소 안내", images: [{ mediaType: "image/png", bytes }] }), {
     fields: { orderNumber: "ORDER-001", amount: 50000, currency: "KRW", cancelledOn: "2026-11-19" },
@@ -24,7 +24,7 @@ test("Bedrock 권한·한도·깨진 응답·출력 잘림은 재시도 가능�
     await assert.rejects(analyze({ text: "x", images: [] }), error => error instanceof AnalysisFailed && !error.message.includes("secret"));
   }
   for (const [text, stopReason] of [["not json", "end_turn"], ['{"amount":50000}', "max_tokens"]] as const) {
-    const analyze = createBedrockAnalyzer({ send: async () => ({ $metadata: {}, stopReason, output: { message: { role: "assistant", content: [{ text }] } } }) });
+    const analyze = createBedrockAnalyzer({ send: async () => ({ $metadata: {}, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, metrics: { latencyMs: 1 }, stopReason, output: { message: { role: "assistant", content: [{ text }] } } }) });
     await assert.rejects(analyze({ images: [] }), AnalysisFailed);
   }
 });
