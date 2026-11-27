@@ -13,8 +13,8 @@
   <img src="https://img.shields.io/badge/React-19-149ECA?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React 19" />
   <img src="https://img.shields.io/badge/TypeScript-7-3178C6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript 7" />
   <img src="https://img.shields.io/badge/Express-5-333333?style=flat-square&amp;logo=express&amp;logoColor=white" alt="Express 5" />
-  <img src="https://img.shields.io/badge/AI-Gemini-8E75B2?style=flat-square&amp;logo=googlegemini&amp;logoColor=white" alt="Gemini AI" />
-  <img src="https://img.shields.io/badge/Stage-Local_MVP-14B8A6?style=flat-square" alt="로컬 MVP 단계" />
+  <img src="https://img.shields.io/badge/AI-Amazon_Bedrock-01A88D?style=flat-square&amp;logo=amazonwebservices&amp;logoColor=white" alt="Amazon Bedrock" />
+  <img src="https://img.shields.io/badge/Stage-AWS_Demo_(Tokyo)-14B8A6?style=flat-square" alt="AWS 시연 단계" />
 </p>
 
 <p align="center">
@@ -87,16 +87,17 @@ flowchart LR
 
 ## 구현 범위
 
-현재는 **합성 결제 3건의 원화 전액 취소 흐름을 다루는 로컬 MVP**입니다.
+현재는 **합성 결제 3건의 원화 전액 취소 흐름을 AWS(도쿄)에서 시연하는 프로토타입**입니다. 날짜별 변경은 [변경 기록](docs/CHANGELOG.md)에 있습니다.
 
 | 구분 | 현재 상태 |
 | --- | --- |
 | 화면·API | 결제 조회, 증빙 입력·수정·확인·연결, 타임라인, 상태 안내, 요약 복사, 시연 초기화 구현 |
-| AI 연동 | Gemini·Bedrock 텍스트·이미지 분석과 실패 시 재시도 구현. 실제 분석에는 공급자별 인증 필요 |
+| AI 연동 | AWS에서는 Amazon Bedrock(Nova Lite)을 EC2 IAM 역할로 호출. 텍스트·이미지 실제 분석 확인. Gemini는 로컬 개발용 대체 공급자 |
 | 예시 데이터 | ‘합성 예시 불러오기’로 키 없이 흐름 확인 가능. AI 분석 결과와 구분 |
-| 접근 제어 | Cognito access token 검증, 고객별 거래·AI 후보 격리, 관리자 전용 초기화. 실제 Cognito 로그인은 AWS 설정 후 확인 |
-| 저장 | SQLite 파일에 증빙·이벤트·멱등성 결과·감사 기록 저장. 서버 재시작 후 보존, 시연 초기화 시 합성 데이터로 복원 |
-| 외부 연동 | 실제 카드사 미연동. Bedrock 어댑터·AWS 배포 코드 준비, 실제 AWS 배포·호출 검증 대기 |
+| 접근 제어 | Cognito 로그인(Authorization Code + PKCE)과 access token 검증, 고객별 거래·AI 후보 격리, 관리자 전용 초기화 |
+| 저장 | SQLite 또는 Amazon DynamoDB(`PAYMENT_STORE`로 선택)에 증빙·이벤트·멱등성 결과·감사 기록을 트랜잭션으로 저장. 재시작 후 보존. 도쿄 시연 서버는 DynamoDB 사용 |
+| 외부 연동 | 실제 카드사 미연동 |
+| AWS 배포 | 도쿄 단일 EC2(공개 포트 없음, SSM 접속), CloudFormation, GitHub Actions + OIDC 배포 |
 
 API 키 설정 여부와 실제 AI 호출 성공 여부는 구분합니다. 실행 환경에서의 AI 호출·배포 검증 결과는 [시연 체크리스트](docs/DEMO_CHECKLIST.md)에서 관리합니다.
 
@@ -141,7 +142,8 @@ npm start
 | 서버 | Express · TypeScript | [`src/server/`](src/server/) |
 | 증빙 분석 | Gemini·Bedrock API 어댑터 | [`src/server/evidence/`](src/server/evidence/) |
 | 상태·문의자료 | 출처별 상태 계산과 문의용 요약 생성 | [`src/server/status/`](src/server/status/) |
-| 결제 저장 | SQLite 트랜잭션·멱등성·감사 기록과 합성 데이터 | [`src/server/payments/`](src/server/payments/) |
+| 결제 저장 | SQLite·DynamoDB 저장소 공통 계약, 트랜잭션·멱등성·감사 기록과 합성 데이터 | [`src/server/payments/`](src/server/payments/) |
+| 인프라 | CloudFormation(EC2·Cognito·DynamoDB·S3·IAM), 설치·배포 스크립트 | [`infra/`](infra/) |
 | 공유 계약 | 클라이언트·서버 공통 타입 | [`src/shared/types.ts`](src/shared/types.ts) |
 
 검증 명령:
@@ -154,6 +156,7 @@ npm test
 
 ## 관련 문서
 
+- [변경 기록](docs/CHANGELOG.md) — 날짜별 기능·AWS 변경과 검증 결과
 - [API 계약](docs/API.md) — 요청·응답 형식과 오류 처리
 - [DynamoDB 저장소](docs/DYNAMODB.md) — 저장소 선택·테이블 설계·로컬 계약 테스트
 - [금융권 백엔드 개선 사례](docs/BACKEND_PORTFOLIO.md) — 문제 재현·구현·실측·면접 설명

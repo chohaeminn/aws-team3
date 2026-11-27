@@ -1,6 +1,6 @@
 # 팀원 공유용 안내
 
-현재 Gemini·Bedrock 분석 어댑터와 AWS 배포 코드가 준비되어 있으며 실제 AWS 배포·Bedrock 호출은 검증 대기입니다. [AWS 배포 안내](AWS_DEPLOYMENT.md)를 확인해주세요. 아래의 초기 역할·시간표는 기획 당시 안내입니다. 최신 실행·배포·시연 확인은 [통합 체크리스트](DEMO_CHECKLIST.md)와 [작업 현황 #18](https://github.com/chohaeminn/aws-team3/issues/18)을 확인해주세요.
+현재 도쿄 리전 EC2에 배포되어 Cognito 로그인, Bedrock 실제 분석, DynamoDB 저장을 사용합니다. 최신 상태는 [변경 기록](CHANGELOG.md), 배포 절차는 [AWS 배포 안내](AWS_DEPLOYMENT.md)를 확인해주세요. 아래의 초기 역할·시간표는 기획 당시 안내입니다. 최신 실행·배포·시연 확인은 [통합 체크리스트](DEMO_CHECKLIST.md)와 [작업 현황 #18](https://github.com/chohaeminn/aws-team3/issues/18)을 확인해주세요.
 
 아래 내용을 팀 채팅에 복사해서 공유하면 됩니다.
 
