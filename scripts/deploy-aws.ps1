@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 Set-Location $repo
-if ($Region -ne 'ap-northeast-2') { throw 'This demo is configured for ap-northeast-2.' }
+if ($Region -notin @('ap-northeast-1', 'ap-northeast-2')) { throw 'Use the existing demo stack region: Tokyo or Seoul.' }
 function Invoke-Aws {
   $cliArguments = $args
   $result = & aws @cliArguments --profile $Profile --region $Region --no-cli-pager

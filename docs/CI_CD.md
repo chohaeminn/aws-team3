@@ -20,6 +20,7 @@ GitHub environment에는 다음 Variables를 설정합니다. 모두 리소스 �
 
 | 변수 | 값의 출처 |
 | --- | --- |
+| `AWS_REGION` | 기존 스택 리전. 현재 생성된 환경은 `ap-northeast-1`(도쿄) |
 | `AWS_ROLE_ARN` | OIDC 스택의 RoleArn |
 | `DEMO_INSTANCE_ID` | 데모 스택의 InstanceId |
 | `DEMO_ARTIFACT_BUCKET` | 데모 스택의 ArtifactBucket |

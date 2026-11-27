@@ -5,9 +5,10 @@ region="$2"
 pool_id="${3:?Cognito user pool ID required}"
 client_id="${4:?Cognito client ID required}"
 domain="${5:?Cognito domain required}"
-[[ "$pool_id" =~ ^ap-northeast-2_[a-zA-Z0-9]+$ ]]
+[[ "$region" =~ ^ap-northeast-[12]$ ]]
+[[ "$pool_id" =~ ^${region}_[a-zA-Z0-9]+$ ]]
 [[ "$client_id" =~ ^[a-zA-Z0-9]+$ ]]
-[[ "$domain" =~ ^[a-z0-9-]+\.auth\.ap-northeast-2\.amazoncognito\.com$ ]]
+[[ "$domain" =~ ^[a-z0-9-]+\.auth\.${region}\.amazoncognito\.com$ ]]
 dnf install -y nodejs22 nodejs22-npm
 id refund-tracker &>/dev/null || useradd --system --home-dir /opt/refund-tracker refund-tracker
 install -d -o refund-tracker -g refund-tracker /opt/refund-tracker

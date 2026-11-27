@@ -1,10 +1,10 @@
 # AWS에서 직접 진행할 설정 순서
 
-애플리케이션·테스트·CI/CD 코드는 저장소에서 준비합니다. 이 절차는 계정 `727847798739`, 서울 `ap-northeast-2`, 유료 시연용 단일 인스턴스를 대상으로 합니다. 실제 고객 정보나 카드 데이터는 사용하지 않습니다.
+애플리케이션·테스트·CI/CD 코드는 저장소에서 준비합니다. 이 절차는 계정 `727847798739`, 유료 시연용 단일 인스턴스를 대상으로 합니다. 실제 생성된 스택의 Cognito 출력 리전은 도쿄 `ap-northeast-1`입니다. 이후 OIDC 스택·GitHub 변수·SSM도 같은 리전을 사용합니다. 코드는 도쿄와 서울을 지원하며 실제 고객 정보나 카드 데이터는 사용하지 않습니다.
 
 ## 데모 인프라 생성
 
-1. AWS 콘솔 오른쪽 위에서 계정 ID와 서울 리전을 확인합니다.
+1. AWS 콘솔 오른쪽 위에서 계정 ID와 도쿄 리전을 확인합니다. 기존 스택이 있다면 재생성하지 않고 그 스택의 Outputs를 사용합니다.
 2. CloudFormation에서 **새 리소스로 스택 생성**을 선택하고 저장소의 `infra/demo.yaml`을 업로드합니다. 스택 이름은 `refund-tracker-demo`를 사용합니다.
 3. 기본 AMI 값을 유지합니다. 검토 화면에서 EC2용 IAM 역할이 생성되는 내용을 확인하고 생성합니다. 이 역할은 SSM, 배포 파일 읽기, Nova Lite 호출에 사용됩니다.
 4. `CREATE_COMPLETE` 이후 Outputs의 InstanceId, ArtifactBucket, CognitoUserPoolId, CognitoClientId, CognitoDomain을 기록합니다. 비밀번호나 액세스 키는 공유하지 않습니다.
@@ -43,7 +43,7 @@ sudo -u refund-tracker env PAYMENT_DB_PATH=/var/lib/refund-tracker/payments.sqli
 PC에 AWS CLI와 Session Manager plugin을 준비하고 로컬 3000번 포트를 비운 뒤 실행합니다.
 
 ```sh
-aws ssm start-session --target <InstanceId> --document-name AWS-StartPortForwardingSession --parameters portNumber=3000,localPortNumber=3000 --region ap-northeast-2 --profile refund-demo
+aws ssm start-session --target <InstanceId> --document-name AWS-StartPortForwardingSession --parameters portNumber=3000,localPortNumber=3000 --region ap-northeast-1 --profile refund-demo
 ```
 
 http://localhost:3000 에서 로그인합니다. Cognito callback과 logout URL이 이 주소로 설정돼 있으므로 다른 포트나 127.0.0.1 주소로 바꾸지 않습니다. HTTP localhost는 SSM 로컬 시연용이며 외부 공개 운영에는 HTTPS와 callback 변경이 필요합니다.

@@ -2,14 +2,15 @@
 set -euo pipefail
 archive="${1:?Pass the verified release archive}"
 : "${DEMO_INSTANCE_ID:?}" "${DEMO_ARTIFACT_BUCKET:?}" "${COGNITO_USER_POOL_ID:?}" "${COGNITO_CLIENT_ID:?}" "${COGNITO_DOMAIN:?}"
+region="${AWS_REGION:?Set the region of the existing demo stack}"
+[[ "$region" =~ ^ap-northeast-[12]$ ]]
 [[ "$DEMO_INSTANCE_ID" =~ ^i-[a-f0-9]+$ ]]
 [[ "$DEMO_ARTIFACT_BUCKET" =~ ^[a-z0-9.-]{3,63}$ ]]
-[[ "$COGNITO_USER_POOL_ID" =~ ^ap-northeast-2_[a-zA-Z0-9]+$ ]]
+[[ "$COGNITO_USER_POOL_ID" =~ ^${region}_[a-zA-Z0-9]+$ ]]
 [[ "$COGNITO_CLIENT_ID" =~ ^[a-zA-Z0-9]+$ ]]
-[[ "$COGNITO_DOMAIN" =~ ^[a-z0-9-]+\.auth\.ap-northeast-2\.amazoncognito\.com$ ]]
+[[ "$COGNITO_DOMAIN" =~ ^[a-z0-9-]+\.auth\.${region}\.amazoncognito\.com$ ]]
 account=$(aws sts get-caller-identity --query Account --output text)
 [[ "$account" == 727847798739 ]] || { echo 'Wrong AWS account'; exit 1; }
-region=ap-northeast-2
 key="releases/${GITHUB_SHA:-manual}-$(date +%s).tgz"
 uri="s3://$DEMO_ARTIFACT_BUCKET/$key"
 aws s3 cp "$archive" "$uri" --region "$region"
