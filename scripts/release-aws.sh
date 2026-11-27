@@ -9,6 +9,8 @@ region="${AWS_REGION:?Set the region of the existing demo stack}"
 [[ "$COGNITO_USER_POOL_ID" =~ ^${region}_[a-zA-Z0-9]+$ ]]
 [[ "$COGNITO_CLIENT_ID" =~ ^[a-zA-Z0-9]+$ ]]
 [[ "$COGNITO_DOMAIN" =~ ^[a-z0-9-]+\.auth\.${region}\.amazoncognito\.com$ ]]
+payment_table="${PAYMENT_TABLE:-}"
+[[ -z "$payment_table" || "$payment_table" =~ ^[A-Za-z0-9_.-]{3,255}$ ]]
 account=$(aws sts get-caller-identity --query Account --output text)
 [[ "$account" == 727847798739 ]] || { echo 'Wrong AWS account'; exit 1; }
 key="releases/${GITHUB_SHA:-manual}-$(date +%s).tgz"
@@ -16,8 +18,8 @@ uri="s3://$DEMO_ARTIFACT_BUCKET/$key"
 aws s3 cp "$archive" "$uri" --region "$region"
 parameters=$(mktemp)
 trap 'rm -f "$parameters"' EXIT
-jq -n --arg uri "$uri" --arg region "$region" --arg pool "$COGNITO_USER_POOL_ID" --arg client "$COGNITO_CLIENT_ID" --arg domain "$COGNITO_DOMAIN" \
-  '{commands:["set -eu",("aws s3 cp "+$uri+" /tmp/refund-tracker.tgz --region "+$region),"tar -xzf /tmp/refund-tracker.tgz -C /tmp infra/install.sh",("bash /tmp/infra/install.sh "+$uri+" "+$region+" "+$pool+" "+$client+" "+$domain)],executionTimeout:["1200"]}' > "$parameters"
+jq -n --arg uri "$uri" --arg region "$region" --arg pool "$COGNITO_USER_POOL_ID" --arg client "$COGNITO_CLIENT_ID" --arg domain "$COGNITO_DOMAIN" --arg table "$payment_table" \
+  '{commands:["set -eu",("aws s3 cp "+$uri+" /tmp/refund-tracker.tgz --region "+$region),"tar -xzf /tmp/refund-tracker.tgz -C /tmp infra/install.sh",("bash /tmp/infra/install.sh "+$uri+" "+$region+" "+$pool+" "+$client+" "+$domain+(if $table == "" then "" else " "+$table end))],executionTimeout:["1200"]}' > "$parameters"
 command_id=$(aws ssm send-command --instance-ids "$DEMO_INSTANCE_ID" --document-name AWS-RunShellScript --parameters "file://$parameters" --query Command.CommandId --output text --region "$region")
 for attempt in {1..250}; do
   sleep 5
