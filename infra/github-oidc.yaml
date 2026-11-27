@@ -33,7 +33,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: repo:chohaeminn/aws-team3:environment:aws-demo
+                token.actions.githubusercontent.com:sub: repo:chohaeminn@118713922/aws-team3@1457386185:environment:aws-demo
       Policies:
         - PolicyName: ReleaseToOneInstance
           PolicyDocument:
