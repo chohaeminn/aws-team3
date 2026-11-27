@@ -95,7 +95,7 @@ flowchart LR
 | AI 연동 | AWS에서는 Amazon Bedrock(Nova Lite)을 EC2 IAM 역할로 호출. 텍스트·이미지 실제 분석 확인. Gemini는 로컬 개발용 대체 공급자 |
 | 예시 데이터 | ‘합성 예시 불러오기’로 키 없이 흐름 확인 가능. AI 분석 결과와 구분 |
 | 접근 제어 | Cognito 로그인(Authorization Code + PKCE)과 access token 검증, 고객별 거래·AI 후보 격리, 관리자 전용 초기화 |
-| 저장 | SQLite 또는 Amazon DynamoDB(`PAYMENT_STORE`로 선택)에 증빙·이벤트·멱등성 결과·감사 기록을 트랜잭션으로 저장. 재시작 후 보존. 도쿄 시연 서버는 현재 SQLite이며 DynamoDB 전환은 배포 대기 |
+| 저장 | SQLite 또는 Amazon DynamoDB(`PAYMENT_STORE`로 선택)에 증빙·이벤트·멱등성 결과·감사 기록을 트랜잭션으로 저장. 재시작 후 보존. 도쿄 시연 서버는 DynamoDB 사용 |
 | 외부 연동 | 실제 카드사 미연동 |
 | AWS 배포 | 도쿄 단일 EC2(공개 포트 없음, SSM 접속), CloudFormation, GitHub Actions + OIDC 배포 |
 
